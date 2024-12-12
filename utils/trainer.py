@@ -32,6 +32,7 @@ class ModelTrainer:
         batch_size: int = 32,
         verbose: bool = True,
         early_stopping_patience: int = 5,
+        early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable]] = None,
     ):
         """
@@ -46,6 +47,7 @@ class ModelTrainer:
             batch_size (int): Batch size for data loaders.
             verbose (bool): If True, prints training progress.
             early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
+            early_stopping_delta (float): Minimum change in the monitored quantity to qualify as an improvement.
             metrics (List[Callable], optional): List of metric functions to evaluate.
         """
         self.model = model.to(device)
@@ -70,7 +72,11 @@ class ModelTrainer:
             self.metrics_history[f'train_{metric_name}'] = []
             self.metrics_history[f'test_{metric_name}'] = []
 
-        self.early_stopping = EarlyStopping(patience=early_stopping_patience, verbose=verbose)
+        self.early_stopping = EarlyStopping(
+            patience=early_stopping_patience, 
+            verbose=verbose,
+            delta=early_stopping_delta
+        )
 
     def setup_data_loaders(self, training_set: Dataset, test_set: Dataset):
         """
