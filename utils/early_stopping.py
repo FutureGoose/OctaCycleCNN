@@ -34,7 +34,8 @@ class EarlyStopping:
         elif score < self.best_score + self.delta:
             self.counter += 1
             if self.verbose:
-                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+                # print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+                print("\033[38;5;180m" + f"EarlyStopping counter: {self.counter} out of {self.patience}" + "\033[0m")
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
@@ -45,6 +46,7 @@ class EarlyStopping:
     def save_checkpoint(self, val_loss: float, model: nn.Module):
         """Saves model when validation loss decreases."""
         if self.verbose:
-            print(f'Validation loss decreased ({self.best_loss:.6f} --> {val_loss:.6f}).  Saving model ...')
+            # print(f'Validation loss decreased ({self.best_loss:.6f} --> {val_loss:.6f}).  Saving model ...')
+            print("\033[38;5;40m" + f"Validation loss decreased ({self.best_loss:.4f} --> {val_loss:.4f}). Saving model." + "\033[0m")
         torch.save(model.state_dict(), self.path)
         self.best_loss = val_loss

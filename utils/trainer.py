@@ -17,7 +17,7 @@ class ModelTrainer:
         optimizer (torch.optim.Optimizer): The optimizer.
         scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
         train_loader (DataLoader): DataLoader for training data.
-        test_loader (DataLoader): DataLoader for testing data.
+        val_loader (DataLoader): DataLoader for validation data.
         metrics (dict): Dictionary to store training metrics.
         early_stopping (EarlyStopping, optional): Early stopping handler.
     """
@@ -61,16 +61,16 @@ class ModelTrainer:
         self.metrics_names = [metric.__name__ for metric in self.metrics]
 
         self.train_loader = None
-        self.test_loader = None
+        self.val_loader = None
 
         self.metrics_history = {
             'train_loss': [],
-            'test_loss': [],
+            'val_loss': [],
             'epochs': []
         }
         for metric_name in self.metrics_names:
             self.metrics_history[f'train_{metric_name}'] = []
-            self.metrics_history[f'test_{metric_name}'] = []
+            self.metrics_history[f'val_{metric_name}'] = []
 
         self.early_stopping = EarlyStopping(
             patience=early_stopping_patience, 
@@ -78,16 +78,16 @@ class ModelTrainer:
             delta=early_stopping_delta
         )
 
-    def setup_data_loaders(self, training_set: Dataset, test_set: Dataset):
+    def setup_data_loaders(self, training_set: Dataset, val_set: Dataset):
         """
-        Sets up the data loaders for training and testing.
+        Sets up the data loaders for training and validation.
 
         Args:
             training_set (Dataset): The training dataset.
-            test_set (Dataset): The testing dataset.
+            val_set (Dataset): The validation dataset.
         """
         self.train_loader = DataLoader(training_set, batch_size=self.batch_size, shuffle=True)
-        self.test_loader = DataLoader(test_set, batch_size=self.batch_size, shuffle=False)
+        self.val_loader = DataLoader(val_set, batch_size=self.batch_size, shuffle=False)
 
     def train_epoch(self, epoch: int) -> float:
         """
@@ -125,21 +125,21 @@ class ModelTrainer:
 
         return average_loss
 
-    def evaluate(self, epoch: int, phase: str = 'test') -> float:
+    def evaluate(self, epoch: int, phase: str = 'val') -> float:
         """
-        Evaluates the model on the test dataset.
+        Evaluates the model on the validation dataset.
 
         Args:
             epoch (int): The current epoch number.
-            phase (str): Phase of evaluation ('test' or 'validation').
+            phase (str): Phase of evaluation ('val' or 'test').
 
         Returns:
             float: The average loss for the phase.
         """
-        if phase == 'test':
-            loader = self.test_loader
+        if phase == 'val':
+            loader = self.val_loader
         else:
-            raise ValueError("Phase must be 'test'.")
+            raise ValueError("Phase must be 'val'.")
 
         self.model.eval()
         running_loss = 0.0
@@ -162,21 +162,32 @@ class ModelTrainer:
             avg_metric = metrics_results[name] / len(loader)
             self.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
+        # if self.verbose:
+        #     if self.metrics_names:
+        #         metrics_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" for name in self.metrics_names])
+        #         print(f'[epoch {epoch}] train loss: {self.metrics_history["train_loss"][-1]:.4f}, '
+        #               f'val loss: {average_loss:.4f}, '
+        #               f'{metrics_str}')
+        #     else:
+        #         print(f'[epoch {epoch}] train loss: {self.metrics_history["train_loss"][-1]:.4f}, '
+        #               f'val loss: {average_loss:.4f}')
         if self.verbose:
             if self.metrics_names:
-                metrics_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" for name in self.metrics_names])
-                print(f'[epoch {epoch}] train loss: {self.metrics_history["train_loss"][-1]:.4f}, '
-                      f'test loss: {average_loss:.4f}, '
-                      f'{metrics_str}')
+                train_loss = self.metrics_history['train_loss'][-1]
+                val_loss = average_loss
+                metric_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" for name in self.metrics_names])
+                print("\033[38;5;44m" + f"[Epoch {epoch:02d}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | {metric_str}" + "\033[0m")
             else:
-                print(f'[epoch {epoch}] train loss: {self.metrics_history["train_loss"][-1]:.4f}, '
-                      f'test loss: {average_loss:.4f}')
+                train_loss = self.metrics_history['train_loss'][-1]
+                val_loss = average_loss
+                print("\033[38;5;44m" + f"[Epoch {epoch:02d}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}" + "\033[0m")
 
-        # early Stopping
+        # early stopping
         self.early_stopping(average_loss, self.model)
         if self.early_stopping.early_stop:
             if self.verbose:
-                print("Early stopping triggered.")
+                # print("Early stopping triggered.")
+                print("\033[38;5;196m" + "🚨 Early stopping triggered." + "\033[0m")
             return average_loss
 
         return average_loss
@@ -184,7 +195,7 @@ class ModelTrainer:
     def train(
         self,
         training_set: Dataset,
-        test_set: Dataset,
+        val_set: Dataset,
         num_epochs: int = 50,
         scheduler_step: Optional[int] = None,
     ) -> nn.Module:
@@ -193,18 +204,18 @@ class ModelTrainer:
 
         Args:
             training_set (Dataset): The training dataset.
-            test_set (Dataset): The testing dataset.
+            val_set (Dataset): The validation dataset.
             num_epochs (int): Number of epochs to train.
             scheduler_step (int, optional): Step size for the scheduler.
 
         Returns:
             nn.Module: The trained model.
         """
-        self.setup_data_loaders(training_set, test_set)
+        self.setup_data_loaders(training_set, val_set)
 
         for epoch in range(1, num_epochs + 1):
             train_loss = self.train_epoch(epoch)
-            test_loss = self.evaluate(epoch, phase='test')
+            val_loss = self.evaluate(epoch, phase='val')
 
             if self.scheduler:
                 self.scheduler.step()
@@ -220,29 +231,31 @@ class ModelTrainer:
 
     def plot_metrics(self):
         """
-        Plots the training and testing metrics.
+        Plots the training and validation metrics.
         """
         epochs = self.metrics_history['epochs']
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
         # plot Losses
         axes[0].plot(epochs, self.metrics_history['train_loss'], label='Train Loss')
-        axes[0].plot(epochs, self.metrics_history['test_loss'], label='Test Loss')
+        axes[0].plot(epochs, self.metrics_history['val_loss'], label='Val Loss')
         axes[0].set_xlabel('Epochs')
         axes[0].set_ylabel('Loss')
-        axes[0].set_title('Training and Test Losses')
+        axes[0].set_title('Training and Validation Losses')
         axes[0].legend()
+        axes[0].set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
         axes[0].grid(True)
 
         # plot Metrics
         for metric in self.metrics_names:
             axes[1].plot(epochs, self.metrics_history[f'train_{metric}'], label=f'Train {metric.capitalize()}')
-            axes[1].plot(epochs, self.metrics_history[f'test_{metric}'], label=f'Test {metric.capitalize()}')
+            axes[1].plot(epochs, self.metrics_history[f'val_{metric}'], label=f'Val {metric.capitalize()}')
 
         axes[1].set_xlabel('Epochs')
         axes[1].set_ylabel('Metric')
-        axes[1].set_title('Training and Test Metrics')
+        axes[1].set_title('Training and Validation Metrics')
         axes[1].legend()
+        axes[1].set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
         axes[1].grid(True)
 
         plt.tight_layout()
