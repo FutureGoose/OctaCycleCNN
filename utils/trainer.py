@@ -31,7 +31,7 @@ class ModelTrainer:
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         batch_size: int = 32,
         verbose: bool = True,
-        early_stopping_patience: int = 10,
+        early_stopping_patience: int = 5,
         metrics: Optional[List[Callable]] = None,
     ):
         """
