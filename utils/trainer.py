@@ -5,6 +5,9 @@ from torch.utils.data import DataLoader, Dataset
 from typing import Optional, List, Callable
 import matplotlib.pyplot as plt
 from early_stopping import EarlyStopping
+from torchinfo import summary
+import datetime
+import os
 
 class ModelTrainer:
     """
@@ -20,6 +23,8 @@ class ModelTrainer:
         val_loader (DataLoader): DataLoader for validation data.
         metrics (dict): Dictionary to store training metrics.
         early_stopping (EarlyStopping, optional): Early stopping handler.
+        hyperparameters (dict): Dictionary to store hyperparameters.
+        log_file (str): Path to the log file.
     """
 
     def __init__(
@@ -34,6 +39,7 @@ class ModelTrainer:
         early_stopping_patience: int = 5,
         early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable]] = None,
+        log_dir: str = "logs"
     ):
         """
         Initializes the ModelTrainer.
@@ -49,6 +55,7 @@ class ModelTrainer:
             early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
             early_stopping_delta (float): Minimum change in the monitored quantity to qualify as an improvement.
             metrics (List[Callable], optional): List of metric functions to evaluate.
+            log_dir (str): Directory to save logs and model checkpoints.
         """
         self.model = model.to(device)
         self.device = device
@@ -77,6 +84,66 @@ class ModelTrainer:
             verbose=verbose,
             delta=early_stopping_delta
         )
+
+        # hyperparameters dictionary
+        self.hyperparameters = {
+            'batch_size': self.batch_size,
+            'learning_rate': self.optimizer.param_groups[0]['lr'],
+            'weight_decay': self.optimizer.param_groups[0].get('weight_decay', 0),
+            'scheduler_step_size': self.scheduler.step_size if self.scheduler else None,
+            'scheduler_gamma': self.scheduler.gamma if self.scheduler else None,
+            'early_stopping_patience': early_stopping_patience,
+            'early_stopping_delta': early_stopping_delta,
+            'metrics': self.metrics_names,
+            'optimizer': type(self.optimizer).__name__,
+            'scheduler': type(self.scheduler).__name__ if self.scheduler else None
+        }
+
+        # setup logging
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_dir = os.path.join(log_dir, f"run_{timestamp}")
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.log_file = os.path.join(self.log_dir, "training_log.txt")
+        
+        # log hyperparameters
+        self.log_hyperparameters()
+        # note: model summary will be logged after data loaders are set up
+
+    def log_hyperparameters(self):
+        with open(self.log_file, 'a') as f:
+            f.write("=== Hyperparameters ===\n")
+            for key, value in self.hyperparameters.items():
+                f.write(f"{key}: {value}\n")
+            f.write("=======================\n\n")
+        
+        if self.verbose:
+            print("\033[38;5;180m" + "=== Hyperparameters ===" + "\033[0m")
+            for key, value in self.hyperparameters.items():
+                print(f"{key}: {value}")
+            print("\033[38;5;180m" + "=======================" + "\033[0m\n")
+
+    def log_model_summary(self, input_size):
+        try:
+            summary_str = str(summary(
+                self.model, 
+                input_size=input_size,  # dynamically inferred
+                verbose=0,
+                col_width=20,
+                col_names=["output_size", "num_params", "kernel_size", "mult_adds", "trainable"],
+                row_settings=["var_names"]
+            ))
+            with open(self.log_file, 'a') as f:
+                f.write("=== Model Summary ===\n")
+                f.write(summary_str)
+                f.write("=====================\n\n")
+            
+            if self.verbose:
+                print("\033[38;5;180m" + "=== Model Summary ===" + "\033[0m")
+                print(summary_str)
+                print("\033[38;5;180m" + "=====================" + "\033[0m\n")
+        except Exception as e:
+            if self.verbose:
+                print("\033[38;5;196m" + f"Failed to generate model summary: {e}" + "\033[0m")
 
     def setup_data_loaders(self, training_set: Dataset, val_set: Dataset):
         """
@@ -162,32 +229,32 @@ class ModelTrainer:
             avg_metric = metrics_results[name] / len(loader)
             self.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
-        # if self.verbose:
-        #     if self.metrics_names:
-        #         metrics_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" for name in self.metrics_names])
-        #         print(f'[epoch {epoch}] train loss: {self.metrics_history["train_loss"][-1]:.4f}, '
-        #               f'val loss: {average_loss:.4f}, '
-        #               f'{metrics_str}')
-        #     else:
-        #         print(f'[epoch {epoch}] train loss: {self.metrics_history["train_loss"][-1]:.4f}, '
-        #               f'val loss: {average_loss:.4f}')
+        # prepare log message
         if self.verbose:
             if self.metrics_names:
                 train_loss = self.metrics_history['train_loss'][-1]
                 val_loss = average_loss
                 metric_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" for name in self.metrics_names])
-                print("\033[38;5;44m" + f"[Epoch {epoch:02d}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | {metric_str}" + "\033[0m")
+                log_message = f"[Epoch {epoch:02d}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | {metric_str}"
+                print("\033[38;5;44m" + log_message + "\033[0m")
+                with open(self.log_file, 'a') as f:
+                    f.write(log_message + "\n")
             else:
                 train_loss = self.metrics_history['train_loss'][-1]
                 val_loss = average_loss
-                print("\033[38;5;44m" + f"[Epoch {epoch:02d}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}" + "\033[0m")
+                log_message = f"[Epoch {epoch:02d}] Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"
+                print("\033[38;5;44m" + log_message + "\033[0m")
+                with open(self.log_file, 'a') as f:
+                    f.write(log_message + "\n")
 
         # early stopping
         self.early_stopping(average_loss, self.model)
         if self.early_stopping.early_stop:
             if self.verbose:
-                # print("Early stopping triggered.")
-                print("\033[38;5;196m" + "🚨 Early stopping triggered." + "\033[0m")
+                stop_message = "🚨 Early stopping triggered."
+                print("\033[38;5;196m" + stop_message + "\033[0m")
+                with open(self.log_file, 'a') as f:
+                    f.write(stop_message + "\n")
             return average_loss
 
         return average_loss
@@ -213,6 +280,18 @@ class ModelTrainer:
         """
         self.setup_data_loaders(training_set, val_set)
 
+        # infer input size from the first batch of training data
+        try:
+            sample_data, _ = next(iter(self.train_loader))
+            input_size = tuple(sample_data.size())
+            self.log_model_summary(input_size)
+        except StopIteration:
+            if self.verbose:
+                print("\033[38;5;196m" + "Training loader is empty. Cannot infer input size for model summary." + "\033[0m")
+        except Exception as e:
+            if self.verbose:
+                print("\033[38;5;196m" + f"Failed to infer input size for model summary: {e}" + "\033[0m")
+
         for epoch in range(1, num_epochs + 1):
             train_loss = self.train_epoch(epoch)
             val_loss = self.evaluate(epoch, phase='val')
@@ -236,7 +315,7 @@ class ModelTrainer:
         epochs = self.metrics_history['epochs']
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
-        # plot Losses
+        # Plot Losses
         axes[0].plot(epochs, self.metrics_history['train_loss'], label='Train Loss')
         axes[0].plot(epochs, self.metrics_history['val_loss'], label='Val Loss')
         axes[0].set_xlabel('Epochs')
@@ -246,7 +325,7 @@ class ModelTrainer:
         axes[0].set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
         axes[0].grid(True)
 
-        # plot Metrics
+        # Plot Metrics
         for metric in self.metrics_names:
             axes[1].plot(epochs, self.metrics_history[f'train_{metric}'], label=f'Train {metric.capitalize()}')
             axes[1].plot(epochs, self.metrics_history[f'val_{metric}'], label=f'Val {metric.capitalize()}')
@@ -259,6 +338,7 @@ class ModelTrainer:
         axes[1].grid(True)
 
         plt.tight_layout()
+        plt.savefig(os.path.join(self.log_dir, "metrics.png"))
         plt.show()
 
     @staticmethod
