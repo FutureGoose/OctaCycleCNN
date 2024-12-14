@@ -170,3 +170,4 @@ cython_debug/
 *.pt
 
 logs/
+training_logs/
