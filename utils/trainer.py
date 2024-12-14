@@ -36,9 +36,9 @@ class ModelTrainer:
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         batch_size: int = 32,
         verbose: bool = True,
-        verbose_details: bool = True,  # new parameter
-        enable_logging: bool = True,    # new parameter
-        save_metrics: bool = True,      # new parameter
+        verbose_details: bool = True,
+        enable_logging: bool = True,
+        save_metrics: bool = True,
         early_stopping_patience: int = 5,
         early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable]] = None,
@@ -70,9 +70,9 @@ class ModelTrainer:
         self.scheduler = scheduler
         self.batch_size = batch_size
         self.verbose = verbose
-        self.verbose_details = verbose_details  # assign new parameter
-        self.enable_logging = enable_logging    # assign new parameter
-        self.save_metrics = save_metrics        # assign new parameter
+        self.verbose_details = verbose_details 
+        self.enable_logging = enable_logging   
+        self.save_metrics = save_metrics       
         self.metrics = metrics if metrics else [self.accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
 
@@ -125,7 +125,7 @@ class ModelTrainer:
         log_footer = "=======================\n\n"
 
         if self.verbose_details:
-            print("\033[38;5;180m" + "=== Hyperparameters ===" + "\033[0m")
+            print("\n\033[38;5;180m" + "=== Hyperparameters ===" + "\033[0m")
             for key, value in hyperparams_to_log.items():
                 print(f"{key}: {value}")
             print("\033[38;5;180m" + "=======================" + "\033[0m\n")
@@ -150,7 +150,7 @@ class ModelTrainer:
             ))
             
             if self.verbose_details:
-                print("\033[38;5;180m" + "==== Model Summary ====" + "\033[0m")  # added newline
+                print("\033[38;5;180m" + "==== Model Summary ====" + "\033[0m")
                 print(summary_str)
                 print("\033[38;5;180m" + "========================================================================================================================" + "\033[0m\n")
 
@@ -188,7 +188,7 @@ class ModelTrainer:
         self.metrics_history['train_loss'].append(average_loss)
 
         # calculate additional metrics
-        outputs_last_batch = outputs  # storing the last batch's outputs and targets
+        outputs_last_batch = outputs
         targets_last_batch = targets
         for metric, name in zip(self.metrics, self.metrics_names):
             metric_value = metric(outputs_last_batch, targets_last_batch)
@@ -224,7 +224,7 @@ class ModelTrainer:
             avg_metric = metrics_results[name] / len(loader)
             self.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
-        # prepare log message
+        # print training and validation loss and metrics
         if self.verbose:
             if self.metrics_names:
                 train_loss = self.metrics_history['train_loss'][-1]
@@ -303,17 +303,12 @@ class ModelTrainer:
             if self.early_stopping.early_stop:
                 break
 
-        # Add a newline before logging summaries for better readability
-        if self.verbose_details:
-            print()  # prints a blank line
-
         # log hyperparameters and model summary at the end of training
         if input_size and self.verbose_details:
             self.log_hyperparameters()
             self.log_model_summary(input_size)
 
         # plot metrics
-        # Regardless of save_metrics, we want to plot. Saving is optional.
         self.plot_metrics()
 
         # Save the best model only if logging is enabled
