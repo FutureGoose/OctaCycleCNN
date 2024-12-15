@@ -4,7 +4,8 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
 from typing import Optional, List, Callable
 import matplotlib.pyplot as plt
-from early_stopping import EarlyStopping
+from ..visualization import MetricsPlotter
+from .early_stopping import EarlyStopping
 from torchinfo import summary
 import datetime
 import os
@@ -95,6 +96,9 @@ class ModelTrainer:
             verbose=verbose,
             delta=early_stopping_delta
         )
+
+        # initialize plotter
+        self.plotter = MetricsPlotter()
 
         # hyperparameters dictionary
         self.hyperparameters = {
@@ -312,54 +316,45 @@ class ModelTrainer:
             self.log_model_summary(input_size)
 
         # plot metrics
-        self.plot_metrics()
+        self.plot()
 
-        # Save the best model only if logging is enabled
+        # save the best model only if logging is enabled
         if self.enable_logging and self.early_stopping.best_model_path:
             self.model.load_state_dict(torch.load(self.early_stopping.best_model_path))
         return self.model
 
-    def plot_metrics(self):
+    def plot(self):
         """plots the training and validation metrics with batch variation bands."""
         epochs = self.metrics_history['epochs']
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
-        # plot losses with batch variations
-        train_losses = self.metrics_history['train_loss']
-        val_losses = self.metrics_history['val_loss']
-        
-        # calculate min and max for each epoch's batch losses
-        train_batch_mins = [min(batch_losses) for batch_losses in self.metrics_history['train_batch_losses']]
-        train_batch_maxs = [max(batch_losses) for batch_losses in self.metrics_history['train_batch_losses']]
-        
-        # plot the main loss lines
-        axes[0].plot(epochs, train_losses, label='train loss')
-        axes[0].plot(epochs, val_losses, label='val loss')
-        
-        # add batch variation bands with low opacity
-        axes[0].fill_between(epochs, train_batch_mins, train_batch_maxs, 
-                            color='lightsteelblue', alpha=0.2, label='batch variation')
-        
-        axes[0].set_xlabel('epochs')
-        axes[0].set_ylabel('loss')
-        axes[0].set_title('training and validation losses')
-        axes[0].legend()
-        axes[0].set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
-        axes[0].grid(True)
+        # prepare batch variation data
+        batch_variation = (
+            [min(batch_losses) for batch_losses in self.metrics_history['train_batch_losses']],
+            [max(batch_losses) for batch_losses in self.metrics_history['train_batch_losses']]
+        )
 
-        # plot metrics (unchanged)
+        # use MetricsPlotter for losses
+        self.plotter.plot_losses(
+            ax=axes[0],
+            epochs=epochs,
+            train_losses=self.metrics_history['train_loss'],
+            test_losses=self.metrics_history['val_loss'],
+            batch_variation=batch_variation
+        )
+
+        # prepare metrics dictionary for the plotter
+        metrics_dict = {}
         for metric in self.metrics_names:
-            axes[1].plot(epochs, self.metrics_history[f'train_{metric}'], 
-                        label=f'train {metric}')
-            axes[1].plot(epochs, self.metrics_history[f'val_{metric}'], 
-                        label=f'val {metric}')
+            metrics_dict[f'train_{metric}'] = self.metrics_history[f'train_{metric}']
+            metrics_dict[f'val_{metric}'] = self.metrics_history[f'val_{metric}']
 
-        axes[1].set_xlabel('epochs')
-        axes[1].set_ylabel('metric')
-        axes[1].set_title('training and validation metrics')
-        axes[1].legend()
-        axes[1].set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
-        axes[1].grid(True)
+        # use MetricsPlotter for other metrics
+        self.plotter.plot_metrics(
+            ax=axes[1],
+            epochs=epochs,
+            metrics_dict=metrics_dict
+        )
 
         plt.tight_layout()
 
