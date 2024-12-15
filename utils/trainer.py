@@ -4,6 +4,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
 from typing import Optional, List, Callable
 import matplotlib.pyplot as plt
+import seaborn as sns
 from early_stopping import EarlyStopping
 from torchinfo import summary
 import datetime
@@ -82,7 +83,9 @@ class ModelTrainer:
         self.metrics_history = {
             'train_loss': [],
             'val_loss': [],
-            'epochs': []
+            'epochs': [],
+            'train_batch_losses': [],
+            'val_batch_losses': []
         }
         for metric_name in self.metrics_names:
             self.metrics_history[f'train_{metric_name}'] = []
@@ -171,7 +174,7 @@ class ModelTrainer:
     def train_epoch(self, epoch: int) -> float:
         """trains the model for one epoch."""
         self.model.train()
-        running_loss = 0.0
+        batch_losses = []
 
         for batch_idx, (data, targets) in enumerate(self.train_loader):
             data, targets = data.to(self.device), targets.to(self.device)
@@ -182,10 +185,11 @@ class ModelTrainer:
             loss.backward()
             self.optimizer.step()
 
-            running_loss += loss.item()
+            batch_losses.append(loss.item())
 
-        average_loss = running_loss / len(self.train_loader)
+        average_loss = sum(batch_losses) / len(self.train_loader)  # epoch total loss / number of batches
         self.metrics_history['train_loss'].append(average_loss)
+        self.metrics_history['train_batch_losses'].append(batch_losses)
 
         # calculate additional metrics
         outputs_last_batch = outputs
@@ -204,27 +208,27 @@ class ModelTrainer:
             raise ValueError("phase must be 'val'.")
 
         self.model.eval()
-        running_loss = 0.0
+        batch_losses = []
         metrics_results = {name: 0.0 for name in self.metrics_names}
-
+        
         with torch.no_grad():
             for data, targets in loader:
                 data, targets = data.to(self.device), targets.to(self.device)
                 outputs = self.model(data)
                 loss = self.criterion(outputs, targets)
-                running_loss += loss.item()
-
+                batch_losses.append(loss.item())
                 for metric in self.metrics:
                     metrics_results[metric.__name__] += metric(outputs, targets)
 
-        average_loss = running_loss / len(loader)
+        average_loss = sum(batch_losses) / len(loader)
         self.metrics_history[f'{phase}_loss'].append(average_loss)
+        self.metrics_history[f'{phase}_batch_losses'].append(batch_losses)
 
         for name in self.metrics_names:
             avg_metric = metrics_results[name] / len(loader)
             self.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
-        # print training and validation loss and metrics
+        # print and log training and validation loss and metrics
         if self.verbose:
             if self.metrics_names:
                 train_loss = self.metrics_history['train_loss'][-1]
@@ -317,13 +321,26 @@ class ModelTrainer:
         return self.model
 
     def plot_metrics(self):
-        """plots the training and validation metrics."""
+        """plots the training and validation metrics with batch variation bands."""
         epochs = self.metrics_history['epochs']
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
-        # plot losses
-        axes[0].plot(epochs, self.metrics_history['train_loss'], label='train loss')
-        axes[0].plot(epochs, self.metrics_history['val_loss'], label='val loss')
+        # plot losses with batch variations
+        train_losses = self.metrics_history['train_loss']
+        val_losses = self.metrics_history['val_loss']
+        
+        # calculate min and max for each epoch's batch losses
+        train_batch_mins = [min(batch_losses) for batch_losses in self.metrics_history['train_batch_losses']]
+        train_batch_maxs = [max(batch_losses) for batch_losses in self.metrics_history['train_batch_losses']]
+        
+        # plot the main loss lines
+        axes[0].plot(epochs, train_losses, label='train loss')
+        axes[0].plot(epochs, val_losses, label='val loss')
+        
+        # add batch variation bands with low opacity
+        axes[0].fill_between(epochs, train_batch_mins, train_batch_maxs, 
+                            color='lightsteelblue', alpha=0.2, label='batch variation')
+        
         axes[0].set_xlabel('epochs')
         axes[0].set_ylabel('loss')
         axes[0].set_title('training and validation losses')
@@ -331,10 +348,12 @@ class ModelTrainer:
         axes[0].set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
         axes[0].grid(True)
 
-        # plot metrics
+        # plot metrics (unchanged)
         for metric in self.metrics_names:
-            axes[1].plot(epochs, self.metrics_history[f'train_{metric}'], label=f'train {metric}')
-            axes[1].plot(epochs, self.metrics_history[f'val_{metric}'], label=f'val {metric}')
+            axes[1].plot(epochs, self.metrics_history[f'train_{metric}'], 
+                        label=f'train {metric}')
+            axes[1].plot(epochs, self.metrics_history[f'val_{metric}'], 
+                        label=f'val {metric}')
 
         axes[1].set_xlabel('epochs')
         axes[1].set_ylabel('metric')
