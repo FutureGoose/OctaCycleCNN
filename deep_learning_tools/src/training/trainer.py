@@ -6,8 +6,8 @@ from typing import Optional, List, Callable
 import matplotlib.pyplot as plt
 from ..visualization import MetricsPlotter
 from .early_stopping import EarlyStopping
+from ..utils import TrainingLogger
 from torchinfo import summary
-import datetime
 import os
 
 class ModelTrainer:
@@ -25,7 +25,6 @@ class ModelTrainer:
         metrics (list): list of metric functions to evaluate.
         early_stopping (EarlyStopping, optional): early stopping handler.
         hyperparameters (dict): dictionary to store hyperparameters.
-        log_file (str): path to the log file.
     """
 
     def __init__(
@@ -77,6 +76,19 @@ class ModelTrainer:
         self.metrics = metrics if metrics else [self.accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
 
+        # initialize logger
+        self.logger = TrainingLogger(log_dir=log_dir, enable_logging=enable_logging)
+
+        # initialize early stopping
+        self.early_stopping = EarlyStopping(
+            patience=early_stopping_patience, 
+            verbose=verbose,
+            delta=early_stopping_delta
+        )
+
+        # initialize plotter
+        self.plotter = MetricsPlotter()
+
         self.train_loader = None
         self.val_loader = None
 
@@ -90,15 +102,6 @@ class ModelTrainer:
         for metric_name in self.metrics_names:
             self.metrics_history[f'train_{metric_name}'] = []
             self.metrics_history[f'val_{metric_name}'] = []
-
-        self.early_stopping = EarlyStopping(
-            patience=early_stopping_patience, 
-            verbose=verbose,
-            delta=early_stopping_delta
-        )
-
-        # initialize plotter
-        self.plotter = MetricsPlotter()
 
         # hyperparameters dictionary
         self.hyperparameters = {
@@ -114,37 +117,15 @@ class ModelTrainer:
             'scheduler': type(self.scheduler).__name__ if self.scheduler else None
         }
 
-        # setup logging only if enable_logging or save_metrics is True
-        if self.enable_logging or self.save_metrics:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.log_dir = os.path.join(log_dir, f"run_{timestamp}")
-            os.makedirs(self.log_dir, exist_ok=True)
-            self.log_file = os.path.join(self.log_dir, "training_log.txt")
-        else:
-            self.log_dir = None
-            self.log_file = None
-
     def log_hyperparameters(self):
-        """logs the hyperparameters to a file and prints them if verbose_details is True."""
-        hyperparams_to_log = self.hyperparameters.copy()
-        log_header = "\n=== Hyperparameters ===\n"
-        log_footer = "=======================\n\n"
-
-        if self.verbose_details:
-            print("\n\033[38;5;180m" + "=== Hyperparameters ===" + "\033[0m")
-            for key, value in hyperparams_to_log.items():
-                print(f"{key}: {value}")
-            print("\033[38;5;180m" + "=======================" + "\033[0m\n")
-
-        if self.enable_logging:
-            with open(self.log_file, 'a') as f:
-                f.write(log_header)
-                for key, value in hyperparams_to_log.items():
-                    f.write(f"{key}: {value}\n")
-                f.write(log_footer)
+        """logs the hyperparameters."""
+        self.logger.log_hyperparameters(
+            hyperparameters=self.hyperparameters,
+            verbose=self.verbose_details
+        )
 
     def log_model_summary(self, input_size):
-        """logs the model summary using torchinfo and prints it if verbose_details is True."""
+        """logs the model summary."""
         try:
             summary_str = str(summary(
                 self.model, 
@@ -154,17 +135,7 @@ class ModelTrainer:
                 col_names=["output_size", "num_params", "kernel_size", "mult_adds", "trainable"],
                 row_settings=["var_names"]
             ))
-            
-            if self.verbose_details:
-                print("\033[38;5;180m" + "==== Model Summary ====" + "\033[0m")
-                print(summary_str)
-                print("\033[38;5;180m" + "========================================================================================================================" + "\033[0m\n")
-
-            if self.enable_logging:
-                with open(self.log_file, 'a') as f:
-                    f.write("==== Model Summary ====\n")
-                    f.write(summary_str)
-                    f.write("========================================================================================================================\n\n")
+            self.logger.log_model_summary(summary_str, verbose=self.verbose_details)
         except Exception as e:
             if self.verbose:
                 print("\033[38;5;196m" + f"failed to generate model summary: {e}" + "\033[0m")
@@ -190,8 +161,11 @@ class ModelTrainer:
 
             batch_losses.append(loss.item())
 
-        average_loss = sum(batch_losses) / len(self.train_loader)  # epoch total loss / number of batches
+        # epoch total loss / number of batches = epoch average loss
+        average_loss = sum(batch_losses) / len(self.train_loader)
+        # saving average loss for the epoch
         self.metrics_history['train_loss'].append(average_loss)
+        # saving all batch losses for the epoch
         self.metrics_history['train_batch_losses'].append(batch_losses)
 
         # calculate additional metrics
@@ -231,35 +205,24 @@ class ModelTrainer:
             avg_metric = metrics_results[name] / len(loader)
             self.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
-        # print and log training and validation loss and metrics
-        if self.verbose:
-            if self.metrics_names:
-                train_loss = self.metrics_history['train_loss'][-1]
-                val_loss = average_loss
-                metric_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" for name in self.metrics_names])
-                log_message = f"[epoch {epoch:02d}] train loss: {train_loss:.4f} | val loss: {val_loss:.4f} | {metric_str}"
-                print("\033[38;5;44m" + log_message + "\033[0m")
-                if self.enable_logging:
-                    with open(self.log_file, 'a') as f:
-                        f.write(log_message + "\n")
-            else:
-                train_loss = self.metrics_history['train_loss'][-1]
-                val_loss = average_loss
-                log_message = f"[epoch {epoch:02d}] train loss: {train_loss:.4f} | val loss: {val_loss:.4f}"
-                print("\033[38;5;44m" + log_message + "\033[0m")
-                if self.enable_logging:
-                    with open(self.log_file, 'a') as f:
-                        f.write(log_message + "\n")
+        # log epoch results using TrainingLogger
+        metrics_dict = {
+            name: self.metrics_history[f'{phase}_{name}'][-1] 
+            for name in self.metrics_names
+        }
+        
+        self.logger.log_epoch(
+            epoch=epoch,
+            train_loss=self.metrics_history['train_loss'][-1],
+            val_loss=average_loss,
+            metrics=metrics_dict if self.metrics_names else None,
+            verbose=self.verbose
+        )
 
         # early stopping
         self.early_stopping(average_loss, self.model)
         if self.early_stopping.early_stop:
-            if self.verbose:
-                stop_message = "\033[38;5;196m🚨 early stopping triggered.\033[0m"
-                print(stop_message)
-                if self.enable_logging:
-                    with open(self.log_file, 'a') as f:
-                        f.write("🚨 early stopping triggered.\n")
+            self.logger.log_early_stopping(verbose=self.verbose)
             return average_loss
 
         return average_loss
@@ -310,7 +273,7 @@ class ModelTrainer:
             if self.early_stopping.early_stop:
                 break
 
-        # log hyperparameters and model summary at the end of training
+        # log hyperparameters and model summary
         if input_size and self.verbose_details:
             self.log_hyperparameters()
             self.log_model_summary(input_size)
@@ -318,9 +281,10 @@ class ModelTrainer:
         # plot metrics
         self.plot()
 
-        # save the best model only if logging is enabled
-        if self.enable_logging and self.early_stopping.best_model_path:
+        # load the best model weights if logging was enabled
+        if self.early_stopping.best_model_path:
             self.model.load_state_dict(torch.load(self.early_stopping.best_model_path))
+
         return self.model
 
     def plot(self):
@@ -358,8 +322,8 @@ class ModelTrainer:
 
         plt.tight_layout()
 
-        if self.save_metrics and self.log_dir:
-            plt.savefig(os.path.join(self.log_dir, "metrics.png"))
+        if self.save_metrics and self.logger.log_dir:
+            plt.savefig(os.path.join(self.logger.log_dir, "metrics.png"))
 
         plt.show()
 
