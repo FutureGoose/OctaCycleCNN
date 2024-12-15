@@ -4,7 +4,6 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
 from typing import Optional, List, Callable
 import matplotlib.pyplot as plt
-import seaborn as sns
 from early_stopping import EarlyStopping
 from torchinfo import summary
 import datetime
