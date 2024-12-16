@@ -43,7 +43,8 @@ class FileLogger(BaseLogger):
                 f.write(f"\n{header}\n")
             f.write(content)
             if header:
-                f.write("\n" + "=" * len(header) + "\n\n")
+                # f.write("\n" + "=" * len(header) + "\n\n")
+                f.write("\n" * 2)
             else:
                 f.write("\n")
 
