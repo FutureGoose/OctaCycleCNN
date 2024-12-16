@@ -2,7 +2,8 @@ import torch
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Dict, Any
+from collections import defaultdict
 import matplotlib.pyplot as plt
 from ..visualization import MetricsPlotter
 from .early_stopping import EarlyStopping
@@ -12,19 +13,22 @@ import os
 
 class ModelTrainer:
     """
-    a flexible and intuitive trainer for pytorch models.
+    A flexible and intuitive trainer for PyTorch models.
 
-    attributes:
-        model (nn.Module): the neural network model to train.
-        device (torch.device): the device to run the training on.
-        criterion (nn.Module): the loss function.
-        optimizer (torch.optim.Optimizer): the optimizer.
-        scheduler (torch.optim.lr_scheduler._LRScheduler, optional): learning rate scheduler.
-        train_loader (DataLoader): dataloader for training data.
-        val_loader (DataLoader): dataloader for validation data.
-        metrics (list): list of metric functions to evaluate.
-        early_stopping (EarlyStopping, optional): early stopping handler.
-        hyperparameters (dict): dictionary to store hyperparameters.
+    Attributes:
+        model (nn.Module): The neural network model to train.
+        device (torch.device): The device to run the training on.
+        criterion (nn.Module): The loss function.
+        optimizer (torch.optim.Optimizer): The optimizer.
+        scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
+        train_loader (DataLoader): DataLoader for training data.
+        val_loader (DataLoader): DataLoader for validation data.
+        metrics (list): List of metric functions to evaluate.
+        early_stopping (EarlyStopping, optional): Early stopping handler.
+        hyperparameters (dict): Dictionary to store hyperparameters.
+        logger (TrainingLogger, optional): Logger for training.
+        plotter (MetricsPlotter): Plotter for metrics visualization.
+        metrics_history (defaultdict): History of training metrics.
     """
 
     def __init__(
