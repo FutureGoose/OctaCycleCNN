@@ -1,5 +1,20 @@
 import torch
 
+def accuracy(outputs: torch.Tensor, targets: torch.Tensor) -> float:
+    """
+    Computes the accuracy metric.
+
+    Args:
+        outputs (torch.Tensor): Model outputs (N, C) where C is number of classes
+        targets (torch.Tensor): Target labels (N,) containing class indices
+
+    Returns:
+        float: Accuracy percentage (0-100)
+    """
+    _, preds = torch.max(outputs, dim=1)
+    return (torch.sum(preds == targets).item() / targets.size(0)) * 100
+
+
 def precision(outputs: torch.Tensor, targets: torch.Tensor) -> float:
     """
     Calculate precision for both binary and multi-class classifications.
@@ -33,6 +48,7 @@ def precision(outputs: torch.Tensor, targets: torch.Tensor) -> float:
                                  torch.zeros_like(predicted_positives))
     return class_precisions.mean().item() * 100
 
+
 def recall(outputs: torch.Tensor, targets: torch.Tensor) -> float:
     """
     Calculate recall for both binary and multi-class classifications.
@@ -65,6 +81,7 @@ def recall(outputs: torch.Tensor, targets: torch.Tensor) -> float:
                               true_positives / actual_positives,
                               torch.zeros_like(actual_positives))
     return class_recalls.mean().item() * 100
+
 
 def f1_score(outputs: torch.Tensor, targets: torch.Tensor) -> float:
     """

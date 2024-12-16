@@ -2,14 +2,13 @@ import torch
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
-from typing import Optional, List, Callable, Dict, Any
+from typing import Optional, List, Callable, Dict, Any, Literal
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from ..visualization import MetricsPlotter
 from .early_stopping import EarlyStopping
-from ..utils import TrainingLogger
-from torchinfo import summary
-import os
+from ..logging import LoggerManager
+from .metrics import accuracy
 
 class ModelTrainer:
     """
@@ -24,9 +23,8 @@ class ModelTrainer:
         train_loader (DataLoader): DataLoader for training data.
         val_loader (DataLoader): DataLoader for validation data.
         metrics (list): List of metric functions to evaluate.
-        early_stopping (EarlyStopping, optional): Early stopping handler.
-        hyperparameters (dict): Dictionary to store hyperparameters.
-        logger (TrainingLogger, optional): Logger for training.
+        early_stopping (EarlyStopping): Early stopping handler.
+        logger_manager (LoggerManager): Manager for logging operations.
         plotter (MetricsPlotter): Plotter for metrics visualization.
         metrics_history (defaultdict): History of training metrics with the following structure:
             - 'train_loss': List[float] - Per-epoch training loss
@@ -47,14 +45,12 @@ class ModelTrainer:
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         batch_size: int = 32,
         verbose: bool = True,
-        verbose_details: bool = True,
-        enable_logging: bool = True,
         save_metrics: bool = True,
         early_stopping_patience: int = 5,
         early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable[[torch.Tensor, torch.Tensor], float]]] = None,
         log_dir: str = "logs",
-        logger: Optional[TrainingLogger] = None
+        logger_type: Optional[Literal["file", "wandb"]] = "file"
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -67,14 +63,12 @@ class ModelTrainer:
             scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
             batch_size (int): Batch size for data loaders.
             verbose (bool): If True, prints training progress.
-            verbose_details (bool): If True, prints hyperparameters and model summary after training.
-            enable_logging (bool): If True, enables logging to a file.
             save_metrics (bool): If True, saves the metrics visualization.
             early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
-            early_stopping_delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+            early_stopping_delta (float): Minimum change in monitored quantity to qualify as an improvement.
             metrics (list of callables, optional): List of metric functions to evaluate.
             log_dir (str): Directory to save logs and model checkpoints.
-            logger (TrainingLogger, optional): Custom logger instance.
+            logger_type (Optional[Literal["file", "wandb"]]): Type of logger to use.
         """
         self.model = model.to(device)
         self.device = device
@@ -83,13 +77,11 @@ class ModelTrainer:
         self.scheduler = scheduler
         self.batch_size = batch_size
         self.verbose = verbose
-        self.verbose_details = verbose_details 
-        self.enable_logging = enable_logging   
         self.save_metrics = save_metrics       
-        self.metrics = metrics if metrics else [self.accuracy]
+        self.metrics = metrics if metrics else [accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
 
-        self.logger = logger if logger else TrainingLogger(log_dir=log_dir, enable_logging=enable_logging)
+        self.logger_manager = LoggerManager(logger_type=logger_type, log_dir=log_dir)
         self.plotter = MetricsPlotter()
 
         self.early_stopping = EarlyStopping(
@@ -103,20 +95,6 @@ class ModelTrainer:
 
         self.metrics_history: defaultdict = defaultdict(list)
 
-        # hyperparameters dictionary
-        self.hyperparameters = {
-            'batch_size': self.batch_size,
-            'learning_rate': self.optimizer.param_groups[0]['lr'],
-            'weight_decay': self.optimizer.param_groups[0].get('weight_decay', 0),
-            'scheduler_step_size': self.scheduler.step_size if self.scheduler else None,
-            'scheduler_gamma': self.scheduler.gamma if self.scheduler else None,
-            'early_stopping_patience': early_stopping_patience,
-            'early_stopping_delta': early_stopping_delta,
-            'metrics': self.metrics_names,
-            'optimizer': type(self.optimizer).__name__,
-            'scheduler': type(self.scheduler).__name__ if self.scheduler else None
-        }
-
     def validate_state(self) -> None:
         """Validates that essential components are initialized."""
         if self.model is None:
@@ -129,30 +107,7 @@ class ModelTrainer:
     def load_best_model(self) -> None:
         """Loads the best model weights saved by EarlyStopping."""
         if self.early_stopping.best_model_path:
-            self.model.load_state_dict(torch.load(self.early_stopping.best_model_path))
-
-    def log_hyperparameters(self) -> None:
-        """Logs the hyperparameters."""
-        self.logger.log_hyperparameters(
-            hyperparameters=self.hyperparameters,
-            verbose=self.verbose_details
-        )
-
-    def log_model_summary(self, input_size: tuple) -> None:
-        """Logs the model summary."""
-        try:
-            summary_str = str(summary(
-                self.model, 
-                input_size=input_size,
-                verbose=0,
-                col_width=16,
-                col_names=["output_size", "num_params", "kernel_size", "mult_adds", "trainable"],
-                row_settings=["var_names"]
-            ))
-            self.logger.log_model_summary(summary_str, verbose=self.verbose_details)
-        except Exception as e:
-            if self.verbose:
-                print("\033[38;5;196m" + f"failed to generate model summary: {e}" + "\033[0m")
+            self.model.load_state_dict(torch.load(self.early_stopping.best_model_path, weights_only=False))
 
     def setup_data_loaders(self, training_set: Dataset, val_set: Dataset) -> None:
         """Sets up the data loaders for training and validation."""
@@ -219,24 +174,18 @@ class ModelTrainer:
             avg_metric = metrics_results[name] / len(loader)
             self.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
-        # log epoch results using TrainingLogger
-        metrics_dict = {
-            name: self.metrics_history[f'{phase}_{name}'][-1] 
-            for name in self.metrics_names
-        }
-        
-        self.logger.log_epoch(
-            epoch=epoch,
-            train_loss=self.metrics_history['train_loss'][-1],
-            val_loss=average_loss,
-            metrics=metrics_dict if self.metrics_names else None,
-            verbose=self.verbose
-        )
+        if self.verbose:
+            metrics_str = ', '.join([f"{name}: {self.metrics_history[f'{phase}_{name}'][-1]:.2f}%" 
+                                for name in self.metrics_names])
+            progress_msg = f"[epoch {epoch:02d}] train loss: {self.metrics_history['train_loss'][-1]:.4f} | "\
+                        f"val loss: {average_loss:.4f} | {metrics_str}"
+            print("\033[38;5;44m" + progress_msg + "\033[0m")
 
         # early stopping
         self.early_stopping(average_loss, self.model)
         if self.early_stopping.early_stop:
-            self.logger.log_early_stopping(verbose=self.verbose)
+            if self.verbose:
+                print("\033[38;5;196m" + "🚨 Early stopping triggered." + "\033[0m")
             return average_loss
 
         return average_loss
@@ -263,18 +212,7 @@ class ModelTrainer:
         self.setup_data_loaders(training_set, val_set)
         self.validate_state()
 
-        # infer input size from the first batch of training data
-        try:
-            sample_data, _ = next(iter(self.train_loader))
-            input_size = tuple(sample_data.size())
-        except StopIteration:
-            if self.verbose:
-                print("\033[38;5;196mtraining loader is empty. cannot infer input size for model summary.\033[0m")
-            input_size = None
-        except Exception as e:
-            if self.verbose:
-                print(f"\033[38;5;196mfailed to infer input size for model summary: {e}\033[0m")
-            input_size = None
+        self.logger_manager.on_training_start(self)
 
         for epoch in range(1, num_epochs + 1):
             self.metrics_history['epochs'].append(epoch)
@@ -284,15 +222,10 @@ class ModelTrainer:
             if self.scheduler:
                 self.scheduler.step()
 
-            # self.metrics_history['epochs'].append(epoch)
+            self.logger_manager.on_epoch_end(self, epoch)
 
             if self.early_stopping.early_stop:
                 break
-
-        # log hyperparameters and model summary
-        if input_size and self.verbose_details:
-            self.log_hyperparameters()
-            self.log_model_summary(input_size)
 
         # plot metrics
         self.plot()
@@ -337,22 +270,7 @@ class ModelTrainer:
 
         plt.tight_layout()
 
-        if self.save_metrics and self.logger.log_dir:
-            plt.savefig(os.path.join(self.logger.log_dir, "metrics.png"))
+        if self.save_metrics:
+            self.logger_manager.save_figure(plt.gcf(), "metrics.png")
 
         plt.show()
-
-    @staticmethod
-    def accuracy(outputs: torch.Tensor, targets: torch.Tensor) -> float:
-        """
-        Computes the accuracy metric.
-
-        Args:
-            outputs (torch.Tensor): The model outputs.
-            targets (torch.Tensor): The ground truth labels.
-
-        Returns:
-            float: Accuracy percentage.
-        """
-        _, preds = torch.max(outputs, dim=1)
-        return (torch.sum(preds == targets).item() / targets.size(0)) * 100
