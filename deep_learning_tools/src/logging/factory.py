@@ -2,6 +2,7 @@ from typing import Optional, Literal, Dict, Any
 from .base import BaseLogger
 from .file_logger import FileLogger
 import matplotlib.pyplot as plt
+
 class NullLogger(BaseLogger):
     """
     A no-op logger that implements the BaseLogger interface but does nothing.
