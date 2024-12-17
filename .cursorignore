@@ -1,0 +1,29 @@
+# ignore all image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+
+# ignore all CSV, excel, and TXT files
+*.csv
+*.xlsx
+*.txt
+*.json
+
+# ignore all checkpoint, pth, pt, pkl, joblib, and pickle files
+*.checkpoint
+*.pth
+*.pt
+*.pkl
+*.joblib
+*.pickle
+
+# venv
+venv/
+
+# pycache
+__pycache__/
+
