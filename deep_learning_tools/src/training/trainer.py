@@ -73,7 +73,7 @@ class ModelTrainer:
         self.model = model.to(device)
         self.device = device
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
-        self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-3)
+        self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
         self.scheduler = scheduler
         self.batch_size = batch_size
         self.verbose = verbose
