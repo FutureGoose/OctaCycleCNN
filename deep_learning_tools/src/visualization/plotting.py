@@ -18,7 +18,7 @@ class MetricsPlotter:
         if batch_variation:
             train_batch_mins, train_batch_maxs = batch_variation
             ax.fill_between(epochs, train_batch_mins, train_batch_maxs, 
-                          color='lightsteelblue', alpha=0.2, label='batch variation')
+                          color='lightsteelblue', alpha=0.3, label='batch variation')
         
         ax.set_xlabel('epochs')
         ax.set_ylabel('loss')
