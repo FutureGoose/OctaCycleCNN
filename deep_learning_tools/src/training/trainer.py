@@ -9,6 +9,9 @@ from ..visualization import MetricsPlotter
 from .early_stopping import EarlyStopping
 from ..logging import LoggerManager
 from .metrics import accuracy
+import signal
+import os
+import sys
 
 class ModelTrainer:
     """
@@ -101,6 +104,22 @@ class ModelTrainer:
         self.val_loader: Optional[DataLoader] = None
 
         self.metrics_history: defaultdict = defaultdict(list)
+
+        self.interrupted = False
+        signal.signal(signal.SIGINT, self._handle_interrupt)
+
+    def _handle_interrupt(self, signum, frame):
+        print("\nTraining interrupted. Cleaning up...")
+        self.interrupted = True
+        self.logger_manager.close()
+        self.logger_manager.logger.cleanup()  # call cleanup if available
+
+        if not os.path.exists('checkpoint.pt'):
+            torch.save(self.model.state_dict(), 'interrupted_model.pt')
+            print("Model state saved as interrupted_model.pt.")
+        else:
+            print("Model state already saved as checkpoint.pt.")
+        raise KeyboardInterrupt("Training interrupted by user.")
 
     def validate_state(self) -> None:
         """Validates that essential components are initialized."""
@@ -242,6 +261,11 @@ class ModelTrainer:
             self.load_best_model()
 
             return self.model
+        except KeyboardInterrupt:
+            print("Training was manually interrupted.")
+        except Exception as e:
+            print(f"Error during training: {str(e)}")
+            self._handle_interrupt(None, None)
         finally:
             # ensure logger is closed even if exception is raised
             self.logger_manager.close()

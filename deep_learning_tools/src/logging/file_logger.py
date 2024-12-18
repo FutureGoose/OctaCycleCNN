@@ -86,3 +86,14 @@ class FileLogger(BaseLogger):
     def save_figure(self, figure: plt.Figure, filename: str) -> None:
         """Save a matplotlib figure to the log directory."""
         figure.savefig(os.path.join(self.log_dir, filename))
+
+    def cleanup(self) -> None:
+        """Remove temporary files created during logging."""
+        # Example: Remove any temporary files if they exist
+        temp_files = [os.path.join(self.log_dir, f) for f in os.listdir(self.log_dir) if f.endswith('.tmp')]
+        for temp_file in temp_files:
+            try:
+                os.remove(temp_file)
+                print(f"Removed temporary file: {temp_file}")
+            except OSError as e:
+                print(f"Error removing temporary file {temp_file}: {str(e)}")

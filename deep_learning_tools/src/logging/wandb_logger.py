@@ -1,9 +1,14 @@
-import wandb
+try:
+    import wandb
+except ImportError:
+    raise ImportError("The 'wandb' package is not installed. Please install it using 'pip install wandb'. For setup instructions, visit: https://docs.wandb.ai/quickstart")
+
 from typing import Dict, Any, Optional
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from .base import BaseLogger
 import os
+
 class WandBLogger(BaseLogger):
     """Logger implementation for Weights & Biases."""
 
@@ -13,8 +18,8 @@ class WandBLogger(BaseLogger):
         project: str,
         entity: Optional[str] = None,
         log_dir: str = "logs",
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         """Initialize wandb logger.
         
         Args:
@@ -23,19 +28,33 @@ class WandBLogger(BaseLogger):
             entity (str, optional): W&B username or team name
             log_dir (str): Local directory for logs
             **kwargs: Additional arguments passed to wandb.init
+        
+        Note:
+            Ensure you have set up your W&B account and logged in using 'wandb login'.
+            For more details, visit: https://docs.wandb.ai/quickstart
         """
         # ensure logs are saved in the wandb subdirectory
         wandb_dir = os.path.join(log_dir, "wandb")
         os.makedirs(wandb_dir, exist_ok=True)
 
-        self.run = wandb.init(
-            project=project,
-            entity=entity,
-            name=run_id,
-            dir=wandb_dir,
-            reinit=True,
-            **kwargs
-        )
+        self._validate_wandb_login()
+
+        try:
+            self.run = wandb.init(
+                project=project,
+                entity=entity,
+                name=run_id,
+                dir=wandb_dir,
+                reinit=True,
+                **kwargs
+            )
+        except wandb.errors.CommError as e:
+            raise RuntimeError(f"Failed to connect to WandB: {str(e)}")
+
+    def _validate_wandb_login(self) -> None:
+        """Check if the user is logged into wandb."""
+        if not wandb.api.api_key:
+            raise RuntimeError("WandB API key not found. Please log in to WandB using 'wandb login'.")
 
     def log_hyperparameters(self, hyperparameters: Dict[str, Any]) -> None:
         """Log hyperparameters to W&B."""
@@ -71,7 +90,10 @@ class WandBLogger(BaseLogger):
             else:
                 log_dict[f"metrics/{name}"] = value
 
-        wandb.log(log_dict)
+        try:
+            wandb.log(log_dict)
+        except wandb.errors.CommError as e:
+            print(f"Warning: Failed to log to WandB: {str(e)}")
 
     def log_early_stopping(self) -> None:
         """Log early stopping event."""
