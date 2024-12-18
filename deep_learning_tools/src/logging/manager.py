@@ -1,4 +1,3 @@
-# deep_learning_tools/src/logging/manager.py
 from typing import Dict, Any, Optional, Literal
 import torch
 from torch import nn
@@ -57,7 +56,7 @@ class LoggerManager:
             'optimizer': type(trainer.optimizer).__name__,
             'scheduler': type(trainer.scheduler).__name__ if trainer.scheduler else None
         }
-
+ 
     def collect_model_summary(self, model: nn.Module, sample_input: torch.Tensor) -> str:
         """
         Generate model summary string.
