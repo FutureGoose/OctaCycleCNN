@@ -1,8 +1,9 @@
 import os
 import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Union
 import matplotlib.pyplot as plt
 from .base import BaseLogger
+import torch.nn as nn
 
 class FileLogger(BaseLogger):
     """
@@ -52,8 +53,18 @@ class FileLogger(BaseLogger):
         content = "\n".join(f"{key}: {value}" for key, value in hyperparameters.items())
         self._write_to_log(content, header="=== Hyperparameters ===")
 
-    def log_model_summary(self, summary_str: str) -> None:
-        """Log model architecture summary to file."""
+    def log_model_summary(self, model_info: Union[str, nn.Module]) -> None:
+        """Log model architecture summary to file.
+        
+        Args:
+            model_info: Either a string containing model summary or the model itself
+        """
+        if isinstance(model_info, str):
+            summary_str = model_info
+        else:
+            # if a model is passed, convert it to string representation
+            summary_str = str(model_info)
+        
         self._write_to_log(summary_str, header="==== Model Summary ====")
 
     def log_epoch(self, epoch: int, train_loss: float, val_loss: float, 

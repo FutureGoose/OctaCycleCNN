@@ -50,7 +50,9 @@ class ModelTrainer:
         early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable[[torch.Tensor, torch.Tensor], float]]] = None,
         log_dir: str = "logs",
-        logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file"
+        logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
+        wandb_project: Optional[str] = None,
+        wandb_entity: Optional[str] = None
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -69,6 +71,8 @@ class ModelTrainer:
             metrics (list of callables, optional): List of metric functions to evaluate.
             log_dir (str): Directory to save logs and model checkpoints.
             logger_type (Optional[Literal["file", "wandb", "tensorboard"]]): Type of logger to use.
+            wandb_project (Optional[str]): Name of the W&B project to log to.
+            wandb_entity (Optional[str]): W&B username or team name.
         """
         self.model = model.to(device)
         self.device = device
@@ -81,7 +85,10 @@ class ModelTrainer:
         self.metrics = metrics if metrics else [accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
 
-        self.logger_manager = LoggerManager(logger_type=logger_type, log_dir=log_dir)
+        self.logger_manager = LoggerManager(logger_type=logger_type, 
+                                            log_dir=log_dir,
+                                            wandb_project=wandb_project,
+                                            wandb_entity=wandb_entity)
         self.plotter = MetricsPlotter()
 
         self.early_stopping = EarlyStopping(

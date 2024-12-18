@@ -1,6 +1,6 @@
 from .training import ModelTrainer, EarlyStopping, accuracy, precision, recall, f1_score
 from .visualization import MetricsPlotter
-from .logging import LoggerManager, BaseLogger, create_logger, NullLogger, FileLogger, TensorBoardLogger
+from .logging import LoggerManager, BaseLogger, create_logger, NullLogger, FileLogger, TensorBoardLogger, WandBLogger
 
 __all__ = [
     'ModelTrainer',
@@ -15,5 +15,6 @@ __all__ = [
     'create_logger',
     'NullLogger',
     'FileLogger',
-    'TensorBoardLogger'
+    'TensorBoardLogger',
+    'WandBLogger'
 ]

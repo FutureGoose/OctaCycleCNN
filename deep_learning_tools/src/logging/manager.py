@@ -6,6 +6,7 @@ from torchinfo import summary
 import matplotlib.pyplot as plt
 from .base import BaseLogger
 from .factory import create_logger
+from .wandb_logger import WandBLogger
 from datetime import datetime
 
 class LoggerManager:
@@ -24,18 +25,37 @@ class LoggerManager:
         >>> logger_manager.on_epoch_end(trainer, epoch=1)
     """
 
-    def __init__(self, logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file", **kwargs):
-        """
-        Initialize the logger manager.
-
+class LoggerManager:
+    def __init__(
+        self, 
+        logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
+        wandb_project: Optional[str] = None,  # renamed to be explicit
+        wandb_entity: Optional[str] = None,   # renamed to be explicit
+        **kwargs
+    ):
+        """Initialize the logger manager.
+        
         Args:
-            logger_type (Optional[Literal["file", "wandb", "tensorboard"]]): Type of logger to use.
-                If None, logging is disabled.
-            **kwargs: Additional arguments passed to the logger constructor.
+            logger_type: Type of logger to use ("file", "wandb", or "tensorboard")
+            wandb_project: Name of the W&B project to log to (required if using wandb)
+            wandb_entity: W&B username or team name (optional)
+            **kwargs: Additional arguments passed to the logger
         """
-        # generate run_id that will be passed to all loggers
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.logger = create_logger(logger_type, run_id=run_id, **kwargs)
+        
+        if logger_type == "wandb":
+            if wandb_project is None:
+                raise ValueError("wandb_project must be specified when using wandb logger")
+                
+            self.logger = create_logger(
+                logger_type,
+                run_id=run_id,
+                project=wandb_project,
+                entity=wandb_entity,
+                **kwargs
+            )
+        else:
+            self.logger = create_logger(logger_type, run_id=run_id, **kwargs)
 
     def close(self) -> None:
         """Close the logger if it supports closing e.g. tensorboard."""
@@ -65,46 +85,65 @@ class LoggerManager:
             'scheduler': type(trainer.scheduler).__name__ if trainer.scheduler else None
         }
  
-    def collect_model_summary(self, model: nn.Module, sample_input: torch.Tensor) -> str:
-        """
-        Generate model summary string.
-
+    def collect_model_summary(self, trainer: "ModelTrainer") -> str:
+        """Generate model summary string using actual data sample.
+        
         Args:
-            model (nn.Module): The PyTorch model.
-            sample_input (torch.Tensor): Sample input tensor for the model.
-
+            trainer: The model trainer instance containing model and data loaders
+            
         Returns:
-            str: Formatted model summary string.
+            str: Formatted model summary string
         """
         try:
+            if trainer.train_loader is None:
+                raise ValueError("Training data loader not initialized")
+                
+            # get sample batch from training data
+            sample_data, _ = next(iter(trainer.train_loader))
+            if not isinstance(sample_data, torch.Tensor):
+                raise TypeError(f"Expected tensor input, got {type(sample_data)}")
+                
             return str(summary(
-                model, 
-                input_size=tuple(sample_input.size()),
+                trainer.model, 
+                input_size=tuple(sample_data.size()),
                 verbose=0,
                 col_width=16,
                 col_names=["output_size", "num_params", "kernel_size", "mult_adds", "trainable"],
                 row_settings=["var_names"]
             ))
         except Exception as e:
-            return f"Failed to generate summary: {e}"
+            return f"Failed to generate summary: {str(e)}"
 
-    def on_training_start(self, trainer) -> None:
-        """
-        Handle start of training events.
+    # def on_training_start(self, trainer) -> None:
+    #     """
+    #     Handle start of training events.
 
-        Args:
-            trainer: The model trainer instance.
-        """
+    #     Args:
+    #         trainer: The model trainer instance.
+    #     """
+    #     hyperparams = self.collect_hyperparameters(trainer)
+    #     self.logger.log_hyperparameters(hyperparams)
+        
+    #     if trainer.train_loader:
+    #         try:
+    #             sample_data, _ = next(iter(trainer.train_loader))
+    #             summary = self.collect_model_summary(trainer.model, sample_data)
+    #             self.logger.log_model_summary(summary)
+    #         except StopIteration:
+    #             pass  # handle empty dataset case silently
+
+    def on_training_start(self, trainer: "ModelTrainer") -> None:
+        """Handle events at the start of training."""
+        # collect hyperparameters
         hyperparams = self.collect_hyperparameters(trainer)
         self.logger.log_hyperparameters(hyperparams)
         
-        if trainer.train_loader:
-            try:
-                sample_data, _ = next(iter(trainer.train_loader))
-                summary = self.collect_model_summary(trainer.model, sample_data)
-                self.logger.log_model_summary(summary)
-            except StopIteration:
-                pass  # Handle empty dataset case silently
+        # log model architecture
+        if isinstance(self.logger, WandBLogger):
+            self.logger.watch_model(trainer.model)
+        else:
+            model_summary = self.collect_model_summary(trainer)
+            self.logger.log_model_summary(model_summary)
 
     def on_epoch_end(self, trainer, epoch: int) -> None:
         """

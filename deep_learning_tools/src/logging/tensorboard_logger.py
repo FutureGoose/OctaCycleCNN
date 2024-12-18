@@ -56,6 +56,7 @@ class TensorBoardLogger(BaseLogger):
         self.writer.add_text("Model Summary", summary_str)
 
     def log_epoch(self, epoch: int, train_loss: float, val_loss: float, metrics: Dict[str, float]) -> None:
+        """Log epoch metrics to TensorBoard."""
         self.writer.add_scalar("Loss/train", train_loss, epoch)
         self.writer.add_scalar("Loss/validation", val_loss, epoch)
         for metric_name, metric_value in metrics.items():
