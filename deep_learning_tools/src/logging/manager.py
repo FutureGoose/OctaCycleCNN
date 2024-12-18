@@ -23,16 +23,21 @@ class LoggerManager:
         >>> logger_manager.on_epoch_end(trainer, epoch=1)
     """
 
-    def __init__(self, logger_type: Optional[Literal["file", "wandb"]] = "file", **kwargs):
+    def __init__(self, logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file", **kwargs):
         """
         Initialize the logger manager.
 
         Args:
-            logger_type (Optional[Literal["file", "wandb"]]): Type of logger to use.
+            logger_type (Optional[Literal["file", "wandb", "tensorboard"]]): Type of logger to use.
                 If None, logging is disabled.
             **kwargs: Additional arguments passed to the logger constructor.
         """
         self.logger = create_logger(logger_type, **kwargs)
+
+    def close(self) -> None:
+        """Close the logger if it supports closing e.g. tensorboard."""
+        if hasattr(self.logger, 'close'):
+            self.logger.close()
 
     def collect_hyperparameters(self, trainer) -> Dict[str, Any]:
         """

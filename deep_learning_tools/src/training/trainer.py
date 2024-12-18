@@ -50,7 +50,7 @@ class ModelTrainer:
         early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable[[torch.Tensor, torch.Tensor], float]]] = None,
         log_dir: str = "logs",
-        logger_type: Optional[Literal["file", "wandb"]] = "file"
+        logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file"
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -68,7 +68,7 @@ class ModelTrainer:
             early_stopping_delta (float): Minimum change in monitored quantity to qualify as an improvement.
             metrics (list of callables, optional): List of metric functions to evaluate.
             log_dir (str): Directory to save logs and model checkpoints.
-            logger_type (Optional[Literal["file", "wandb"]]): Type of logger to use.
+            logger_type (Optional[Literal["file", "wandb", "tensorboard"]]): Type of logger to use.
         """
         self.model = model.to(device)
         self.device = device
@@ -209,31 +209,35 @@ class ModelTrainer:
         Returns:
             nn.Module: The trained model.
         """
-        self.setup_data_loaders(training_set, val_set)
-        self.validate_state()
+        try:
+            self.setup_data_loaders(training_set, val_set)
+            self.validate_state()
 
-        self.logger_manager.on_training_start(self)
+            self.logger_manager.on_training_start(self)
 
-        for epoch in range(1, num_epochs + 1):
-            self.metrics_history['epochs'].append(epoch)
-            train_loss = self.train_epoch(epoch)
-            val_loss = self.evaluate(epoch, phase='val')
+            for epoch in range(1, num_epochs + 1):
+                self.metrics_history['epochs'].append(epoch)
+                train_loss = self.train_epoch(epoch)
+                val_loss = self.evaluate(epoch, phase='val')
 
-            if self.scheduler:
-                self.scheduler.step()
+                if self.scheduler:
+                    self.scheduler.step()
 
-            self.logger_manager.on_epoch_end(self, epoch)
+                self.logger_manager.on_epoch_end(self, epoch)
 
-            if self.early_stopping.early_stop:
-                break
+                if self.early_stopping.early_stop:
+                    break
 
-        # plot metrics
-        self.plot()
+            # plot metrics
+            self.plot()
 
-        # load the best model parameters (weights, biases, batchnorm, etc.)
-        self.load_best_model()
+            # load the best model parameters (weights, biases, batchnorm, etc.)
+            self.load_best_model()
 
-        return self.model
+            return self.model
+        finally:
+            # ensure logger is closed even if exception is raised
+            self.logger_manager.close()
 
     def plot(self) -> None:
         """Plots the training and validation metrics with batch variation bands."""

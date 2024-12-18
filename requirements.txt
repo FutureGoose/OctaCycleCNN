@@ -9,4 +9,4 @@ torchaudio
 scikit-learn
 torch-summary
 torchinfo
-torchviz
+tensorboard

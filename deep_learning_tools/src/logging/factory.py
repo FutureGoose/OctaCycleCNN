@@ -1,7 +1,8 @@
 from typing import Optional, Literal, Dict, Any
+import matplotlib.pyplot as plt
 from .base import BaseLogger
 from .file_logger import FileLogger
-import matplotlib.pyplot as plt
+from .tensorboard_logger import TensorBoardLogger
 
 class NullLogger(BaseLogger):
     """
@@ -42,7 +43,8 @@ def create_logger(
                 - project (str): WandB project name
                 - entity (str): WandB entity name
                 - config (dict): WandB config
-
+            For TensorBoardLogger:
+                - log_dir (str): Directory to save logs (default: "logs")
     Returns:
         BaseLogger: An instance of the specified logger type.
 
@@ -53,20 +55,19 @@ def create_logger(
         >>> logger = create_logger("file", log_dir="my_logs")
         >>> logger = create_logger(None)  # Creates NullLogger
         >>> logger = create_logger("wandb", project="my_project")  # Not implemented yet
+        >>> logger = create_logger("tensorboard", log_dir="my_logs")
     """
     if logger_type is None:
         return NullLogger()
     
-    if logger_type == "file":
-        return FileLogger(**kwargs)
+    logger_map = {
+        "file": FileLogger,
+        "tensorboard": TensorBoardLogger,
+        "wandb": None  # not implemented yet
+    }
     
-    if logger_type == "wandb":
-        raise NotImplementedError(
-            "WandB logger not implemented yet. "
-            "Please use 'file' or None for now."
-        )
+    logger_class = logger_map.get(logger_type)
+    if logger_class is None:
+        raise ValueError(f"Unknown or unimplemented logger type: {logger_type}")
     
-    raise ValueError(
-        f"Unknown logger_type: {logger_type}. "
-        "Valid options are: 'file', 'wandb', or None"
-    )
+    return logger_class(**kwargs)
