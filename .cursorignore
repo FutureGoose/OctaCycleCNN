@@ -27,3 +27,13 @@ venv/
 # pycache
 __pycache__/
 
+# specific files
+**/L11_understanding_CNNs.ipynb
+**/L02_gradient_descent.ipynb
+**/L03_pytorch_neurons.ipynb
+**/L03_pytorch_start.ipynb
+**/Neural Networks.ipynb
+**/single_neuron_matrisoperationer.ipynb
+**/L11_understanding_CNNs.ipynb
+**/L13_training_cnn.ipynb
+**/Multiclass Classification  Softmax.ipynb
