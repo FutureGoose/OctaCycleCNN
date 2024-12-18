@@ -6,6 +6,7 @@ from torchinfo import summary
 import matplotlib.pyplot as plt
 from .base import BaseLogger
 from .factory import create_logger
+from datetime import datetime
 
 class LoggerManager:
     """
@@ -32,7 +33,9 @@ class LoggerManager:
                 If None, logging is disabled.
             **kwargs: Additional arguments passed to the logger constructor.
         """
-        self.logger = create_logger(logger_type, **kwargs)
+        # generate run_id that will be passed to all loggers
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.logger = create_logger(logger_type, run_id=run_id, **kwargs)
 
     def close(self) -> None:
         """Close the logger if it supports closing e.g. tensorboard."""

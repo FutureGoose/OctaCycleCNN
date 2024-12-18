@@ -3,13 +3,31 @@ from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 from .base import BaseLogger
 import torch
+import os
 
 class TensorBoardLogger(BaseLogger):
-    """Logger implementation for TensorBoard."""
+    """Logger implementation for TensorBoard.
 
-    def __init__(self, log_dir: str = "logs"):
+    This logger writes logs to a specified directory for visualization in TensorBoard.
+
+    To run TensorBoard, use the following command in your terminal:
+    ```
+    tensorboard --logdir=logs/tensorboard
+    ```
+    Then, open your web browser and navigate to:
+    ```
+    http://localhost:6006/
+    ```
+
+    Attributes:
+        writer (SummaryWriter): The TensorBoard writer instance.
+    """
+
+    def __init__(self, run_id: str, log_dir: str = "logs"):
         """Initialize TensorBoard writer."""
-        self.writer = SummaryWriter(log_dir=log_dir)
+        # organize logs under tensorboard/run_id subdirectory
+        full_log_dir = os.path.join(log_dir, "tensorboard", run_id)
+        self.writer = SummaryWriter(log_dir=full_log_dir)
 
     def _sanitize_hparams(self, hparams: Dict[str, Any]) -> Dict[str, Any]:
         """

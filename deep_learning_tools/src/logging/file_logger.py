@@ -17,7 +17,7 @@ class FileLogger(BaseLogger):
         log_file (str): Path to the text log file
     """
     
-    def __init__(self, log_dir: str = "logs"):
+    def __init__(self, run_id: str, log_dir: str = "logs"):
         """
         Initialize the file logger.
         
@@ -25,8 +25,7 @@ class FileLogger(BaseLogger):
             log_dir (str): Base directory for storing logs.
                 A timestamped subdirectory will be created for this run.
         """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = os.path.join(log_dir, f"run_{timestamp}")
+        self.log_dir = os.path.join(log_dir, "file", run_id)
         os.makedirs(self.log_dir, exist_ok=True)
         self.log_file = os.path.join(self.log_dir, "training_log.txt")
 
