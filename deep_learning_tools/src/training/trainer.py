@@ -13,7 +13,6 @@ import signal
 import os
 import sys
 import wandb
-from ..utils import initialize_wandb_sweep, log_hyperparameters, handle_wandb_error, handle_sweep_configuration
 
 class ModelTrainer:
     """
@@ -31,14 +30,7 @@ class ModelTrainer:
         early_stopping (EarlyStopping): Early stopping handler.
         logger_manager (LoggerManager): Manager for logging operations.
         plotter (MetricsPlotter): Plotter for metrics visualization.
-        metrics_history (defaultdict): History of training metrics with the following structure:
-            - 'train_loss': List[float] - Per-epoch training loss
-            - 'val_loss': List[float] - Per-epoch validation loss
-            - 'epochs': List[int] - Epoch numbers
-            - 'train_batch_losses': List[List[float]] - Per-batch training losses for each epoch
-            - 'val_batch_losses': List[List[float]] - Per-batch validation losses for each epoch
-            - f'train_{metric_name}': List[float] - Training metrics for custom metrics
-            - f'val_{metric_name}': List[float] - Validation metrics for custom metrics
+        metrics_history (defaultdict): History of training metrics.
     """
 
     def __init__(
@@ -49,7 +41,6 @@ class ModelTrainer:
         optimizer: Optional[torch.optim.Optimizer] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         batch_size: int = 32,
-        sweep: bool = False,           # NEW
         verbose: bool = True,
         save_metrics: bool = True,
         early_stopping_patience: int = 5,
@@ -70,7 +61,6 @@ class ModelTrainer:
             optimizer (torch.optim.Optimizer, optional): The optimizer. Defaults to Adam.
             scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
             batch_size (int): Batch size for data loaders.
-            sweep (bool): If True, uses W&B configurations for training.  # NEW
             verbose (bool): If True, prints training progress.
             save_metrics (bool): If True, saves the metrics visualization.
             early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
@@ -82,32 +72,10 @@ class ModelTrainer:
             wandb_entity (Optional[str]): W&B username or team name.
         """
 
-        if sweep:
-            sweep_config = handle_sweep_configuration(
-                model=self.model,
-                optimizer=self.optimizer,
-                batch_size=self.batch_size,
-                early_stopping_patience=early_stopping_patience,
-                early_stopping_delta=early_stopping_delta
-            )
-
-            self.batch_size = sweep_config["batch_size"]
-            self.optimizer = sweep_config["optimizer"]
-            early_stopping_patience = sweep_config["early_stopping_patience"]
-            early_stopping_delta = sweep_config["early_stopping_delta"]
-
-            log_hyperparameters(
-                batch_size=self.batch_size,
-                optimizer=self.optimizer,
-                early_stopping_patience=early_stopping_patience,
-                early_stopping_delta=early_stopping_delta
-            )
-
         self.model = model.to(device)
         self.device = device
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
         self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
-
         self.scheduler = scheduler
         self.batch_size = batch_size
 
@@ -116,10 +84,12 @@ class ModelTrainer:
         self.metrics = metrics if metrics else [accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
 
-        self.logger_manager = LoggerManager(logger_type=logger_type, 
-                                            log_dir=log_dir,
-                                            wandb_project=wandb_project,
-                                            wandb_entity=wandb_entity)
+        self.logger_manager = LoggerManager(
+            logger_type=logger_type, 
+            log_dir=log_dir,
+            wandb_project=wandb_project,
+            wandb_entity=wandb_entity
+        )
         self.plotter = MetricsPlotter()
 
         self.early_stopping = EarlyStopping(

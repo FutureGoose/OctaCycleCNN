@@ -173,3 +173,6 @@ logs/
 training_logs/
 **/logs/
 **/wandb/
+MNIST/
+CIFAR10/
+FashionMNIST/
