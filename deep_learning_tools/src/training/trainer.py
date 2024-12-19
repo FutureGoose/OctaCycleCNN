@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
-from typing import Optional, List, Callable, Dict, Any, Literal
+from typing import Optional, List, Callable, Dict, Any, Literal, TYPE_CHECKING
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from ..visualization import MetricsPlotter
@@ -13,6 +13,9 @@ import signal
 import os
 import sys
 import wandb
+
+if TYPE_CHECKING:
+    from ..sweeps.sweep import run_sweep
 
 class ModelTrainer:
     """
@@ -49,7 +52,8 @@ class ModelTrainer:
         log_dir: str = "logs",
         logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
         wandb_project: Optional[str] = None,
-        wandb_entity: Optional[str] = None
+        wandb_entity: Optional[str] = None,
+        sweep: bool = False
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -70,6 +74,7 @@ class ModelTrainer:
             logger_type (Optional[Literal["file", "wandb", "tensorboard"]]): Type of logger to use.
             wandb_project (Optional[str]): Name of the W&B project to log to.
             wandb_entity (Optional[str]): W&B username or team name.
+            sweep (bool): If True, delegates training to W&B sweep.
         """
 
         self.model = model.to(device)
@@ -102,6 +107,8 @@ class ModelTrainer:
         self.val_loader: Optional[DataLoader] = None
 
         self.metrics_history: defaultdict = defaultdict(list)
+
+        self.sweep = sweep
 
         self.interrupted = False
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -245,6 +252,13 @@ class ModelTrainer:
         try:
             self.setup_data_loaders(training_set, val_set)
             self.validate_state()
+
+            if self.sweep:
+                self.training_set = training_set
+                self.val_set = val_set
+                from ..sweeps.sweep import run_sweep  # import here to avoid circular import
+                run_sweep(self)
+                return self.model  # exit after sweep
 
             self.logger_manager.on_training_start(self)
 

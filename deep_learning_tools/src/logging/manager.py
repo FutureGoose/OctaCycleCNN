@@ -42,6 +42,8 @@ class LoggerManager:
             **kwargs: Additional arguments passed to the logger
         """
         self.logger_type = logger_type
+        self.wandb_project = wandb_project   # new
+        self.wandb_entity = wandb_entity     # new
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         if logger_type == "wandb":

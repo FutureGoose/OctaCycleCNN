@@ -1,4 +1,6 @@
-sweep_config = {
+from typing import Dict, Any, List, Union
+
+sweep_config: Dict[str, Any] = {
     'method': 'random',
     'metric': {
         'goal': 'minimize',
