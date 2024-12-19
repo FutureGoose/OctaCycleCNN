@@ -10,8 +10,8 @@ import sys
 package_root = Path('/home/gustaf/projects/deeplearning/deep_learning_tools')
 sys.path.append(str(package_root))
 
-from src.training.trainer import ModelTrainer  # adjust the import based on your package structure
-from src.metrics import accuracy  # adjust as necessary
+from src import ModelTrainer  # adjust the import based on your package structure
+from src import accuracy  # adjust as necessary
 
 def main():
     # initialize w&b
@@ -42,9 +42,9 @@ def main():
     ])
 
     # load datasets with the new data root
-    data_root = '/home/gustaf/projects/deeplearning'  # updated to one level up
-    trainset = datasets.FashionMNIST(root=f'{data_root}/deep_learning_tools/data/', train=True, download=True, transform=transform)
-    valset = datasets.FashionMNIST(root=f'{data_root}/deep_learning_tools/data/', train=False, download=True, transform=transform)
+    data_path = '/home/gustaf/projects/deeplearning/data'
+    trainset = datasets.FashionMNIST(root=data_path, train=True, download=True, transform=transform)
+    valset = datasets.FashionMNIST(root=data_path, train=False, download=True, transform=transform)
 
     # initialize trainer
     trainer = ModelTrainer(
@@ -61,8 +61,7 @@ def main():
         early_stopping_delta=wandb.config.early_stopping_delta,
         logger_type="wandb",
         wandb_project="fashion-mnist",
-        wandb_entity="futuregoose-org"
-        # wandb_entity="futuregoose"
+        wandb_entity="futuregoose"
     )
 
     # train model

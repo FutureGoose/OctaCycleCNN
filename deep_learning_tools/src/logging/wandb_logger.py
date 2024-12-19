@@ -34,7 +34,7 @@ class WandBLogger(BaseLogger):
             For more details, visit: https://docs.wandb.ai/quickstart
         """
         # ensure logs are saved in the wandb subdirectory
-        wandb_dir = os.path.join(log_dir, "wandb")
+        wandb_dir = log_dir
         os.makedirs(wandb_dir, exist_ok=True)
 
         self._validate_wandb_login()

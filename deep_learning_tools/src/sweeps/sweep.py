@@ -28,12 +28,12 @@ sweep_config = {
 }
 
 # initialize the sweep
-sweep_id = wandb.sweep(sweep_config, project="fashion-mnist")
+sweep_id = wandb.sweep(sweep_config, project="fashion-mnist", entity="futuregoose")
 
 # function to run the training script
 def train():
     # run the training script
-    subprocess.run(["python", "deep_learning_tools/src/training/train.py"])
+    subprocess.run(["python3", "-u", "deep_learning_tools/src/training/train.py"])
 
 # start the sweep agent
 wandb.agent(sweep_id, function=train)

@@ -13,6 +13,7 @@ import signal
 import os
 import sys
 import wandb
+from ..utils import initialize_wandb_sweep, log_hyperparameters, handle_wandb_error, handle_sweep_configuration
 
 class ModelTrainer:
     """
@@ -82,18 +83,25 @@ class ModelTrainer:
         """
 
         if sweep:
-            wandb.init()  # initialize W&B
-            config = wandb.config  # retrieve sweep config
+            sweep_config = handle_sweep_configuration(
+                model=self.model,
+                optimizer=self.optimizer,
+                batch_size=self.batch_size,
+                early_stopping_patience=early_stopping_patience,
+                early_stopping_delta=early_stopping_delta
+            )
 
-            # override hyperparameters with config values if present
-            batch_size = config.get("batch_size", batch_size)
-            learning_rate = config.get("learning_rate", 1e-4)
-            early_stopping_patience = config.get("early_stopping_patience", early_stopping_patience)
-            early_stopping_delta = config.get("early_stopping_delta", early_stopping_delta)
+            self.batch_size = sweep_config["batch_size"]
+            self.optimizer = sweep_config["optimizer"]
+            early_stopping_patience = sweep_config["early_stopping_patience"]
+            early_stopping_delta = sweep_config["early_stopping_delta"]
 
-            # initialize optimizer with learning rate from config
-            if optimizer is None:
-                optimizer = Adam(model.parameters(), lr=learning_rate)
+            log_hyperparameters(
+                batch_size=self.batch_size,
+                optimizer=self.optimizer,
+                early_stopping_patience=early_stopping_patience,
+                early_stopping_delta=early_stopping_delta
+            )
 
         self.model = model.to(device)
         self.device = device
@@ -128,20 +136,12 @@ class ModelTrainer:
         self.interrupted = False
         signal.signal(signal.SIGINT, self._handle_interrupt)
 
-        if sweep:
-            # log hyperparameters
-            wandb.config.update({
-                "batch_size": self.batch_size,
-                "learning_rate": self.optimizer.param_groups[0]["lr"],
-                "early_stopping_patience": self.early_stopping.patience,
-                "early_stopping_delta": self.early_stopping.delta
-            })
-
     def _handle_interrupt(self, signum, frame):
         print("\nTraining interrupted. Cleaning up...")
         self.interrupted = True
         self.logger_manager.close()
-        self.logger_manager.logger.cleanup()  # call cleanup if available
+        if hasattr(self.logger_manager.logger, 'cleanup'):
+            self.logger_manager.logger.cleanup()  # call cleanup if available
 
         if not os.path.exists('checkpoint.pt'):
             torch.save(self.model.state_dict(), 'interrupted_model.pt')

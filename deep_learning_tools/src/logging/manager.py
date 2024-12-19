@@ -115,24 +115,6 @@ class LoggerManager:
         except Exception as e:
             return f"Failed to generate summary: {str(e)}"
 
-    # def on_training_start(self, trainer) -> None:
-    #     """
-    #     Handle start of training events.
-
-    #     Args:
-    #         trainer: The model trainer instance.
-    #     """
-    #     hyperparams = self.collect_hyperparameters(trainer)
-    #     self.logger.log_hyperparameters(hyperparams)
-        
-    #     if trainer.train_loader:
-    #         try:
-    #             sample_data, _ = next(iter(trainer.train_loader))
-    #             summary = self.collect_model_summary(trainer.model, sample_data)
-    #             self.logger.log_model_summary(summary)
-    #         except StopIteration:
-    #             pass  # handle empty dataset case silently
-
     def on_training_start(self, trainer: "ModelTrainer") -> None:
         """Handle events at the start of training."""
         # collect hyperparameters
