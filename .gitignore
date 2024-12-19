@@ -171,3 +171,5 @@ cython_debug/
 
 logs/
 training_logs/
+**/logs/
+**/wandb/
