@@ -12,6 +12,7 @@ from .metrics import accuracy
 import signal
 import os
 import sys
+import wandb
 
 class ModelTrainer:
     """
@@ -156,6 +157,10 @@ class ModelTrainer:
 
             batch_losses.append(loss.item())
 
+            # log metrics for each batch if logger type is wandb
+            if self.logger_manager.logger_type == "wandb":
+                wandb.log({"batch_loss": loss.item(), "epoch": epoch})
+
         # epoch total loss / number of batches = epoch average loss
         average_loss = sum(batch_losses) / len(self.train_loader)
         # saving average loss for the epoch
@@ -169,6 +174,10 @@ class ModelTrainer:
         for metric, name in zip(self.metrics, self.metrics_names):
             metric_value = metric(outputs_last_batch, targets_last_batch)
             self.metrics_history[f'train_{name}'].append(metric_value)
+
+        # log epoch metrics if logger type is wandb
+        if self.logger_manager.logger_type == "wandb":
+            wandb.log({"epoch_loss": average_loss, "epoch": epoch})
 
         return average_loss
 
@@ -259,6 +268,12 @@ class ModelTrainer:
 
             # load the best model parameters (weights, biases, batchnorm, etc.)
             self.load_best_model()
+
+            # log the existing checkpoint as an artifact if logger type is wandb
+            if self.logger_manager.logger_type == "wandb":
+                artifact = wandb.Artifact('model_checkpoint', type='model')
+                artifact.add_file(self.early_stopping.best_model_path)
+                wandb.log_artifact(artifact)
 
             return self.model
         except KeyboardInterrupt:

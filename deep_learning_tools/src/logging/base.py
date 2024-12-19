@@ -10,11 +10,6 @@ class BaseLogger(ABC):
     def log_hyperparameters(self, hyperparameters: Dict[str, Any]) -> None:
         """Log hyperparameters."""
         pass
-    
-    # @abstractmethod
-    # def log_model_summary(self, summary_str: str) -> None:
-    #     """Log model architecture summary."""
-    #     pass
 
     @abstractmethod
     def log_model_summary(self, model_info: Union[str, nn.Module]) -> None:

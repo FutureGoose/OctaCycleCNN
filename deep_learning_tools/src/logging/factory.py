@@ -32,7 +32,7 @@ def create_logger(
     **kwargs
 ) -> BaseLogger:
     """Create appropriate logger instance."""
-    if logger_type is None:
+    if logger_type not in ["file", "wandb", "tensorboard"]:
         return NullLogger()
     
     logger_map = {
@@ -42,7 +42,4 @@ def create_logger(
     }
     
     logger_class = logger_map.get(logger_type)
-    if logger_class is None:
-        raise ValueError(f"Unknown logger type: {logger_type}")
-    
     return logger_class(**kwargs)

@@ -41,6 +41,7 @@ class LoggerManager:
             wandb_entity: W&B username or team name (optional)
             **kwargs: Additional arguments passed to the logger
         """
+        self.logger_type = logger_type
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         if logger_type == "wandb":

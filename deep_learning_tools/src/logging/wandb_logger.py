@@ -46,6 +46,8 @@ class WandBLogger(BaseLogger):
                 name=run_id,
                 dir=wandb_dir,
                 reinit=True,
+                notes="Training deep CNNs with optimized W&B setup",
+                tags=["cnn", "deep_learning", "experiment1"],
                 **kwargs
             )
         except wandb.errors.CommError as e:
