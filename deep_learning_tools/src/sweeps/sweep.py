@@ -1,39 +1,55 @@
-# deep_learning_tools/src/sweeps/sweep.py
+sweep_id = wandb.sweep(sweep_config, project="pytorch-sweeps-demo", entity="futuregoose")
 
-import wandb
-import subprocess
+import torch
+import torch.optim as optim
+import torch.nn.functional as F
+import torch.nn as nn
+from torchvision import datasets, transforms
 
-# define the sweep configuration
-sweep_config = {
-    "method": "grid",  # options: grid, random, bayesian
-    "name": "mnist-sweep",
-    "metric": {
-        "name": "val_loss",
-        "goal": "minimize"
-    },
-    "parameters": {
-        "batch_size": {
-            "values": [32, 64, 128]
-        },
-        "learning_rate": {
-            "values": [0.1, 0.01, 0.001]
-        },
-        "early_stopping_patience": {
-            "values": [3, 5]
-        },
-        "early_stopping_delta": {
-            "values": [0.0001, 0.001]
-        }
-    }
-}
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# initialize the sweep
-sweep_id = wandb.sweep(sweep_config, project="fashion-mnist", entity="futuregoose")
 
-# function to run the training script
-def train():
-    # run the training script
-    subprocess.run(["python3", "-u", "deep_learning_tools/src/training/train.py"])
+def train(config=None):
+    # Initialize a new wandb run
+    with wandb.init(config=config):
+        # If called by wandb.agent, as below,
+        # this config will be set by Sweep Controller
+        config = wandb.config
 
-# start the sweep agent
-wandb.agent(sweep_id, function=train)
+        loader = build_dataset(config.batch_size)
+        network = build_network(config.fc_layer_size, config.dropout)
+        optimizer = build_optimizer(network, config.optimizer, config.learning_rate)
+
+        for epoch in range(config.epochs):
+            avg_loss = train_epoch(network, loader, optimizer)
+            wandb.log({"loss": avg_loss, "epoch": epoch})
+
+
+def train_epoch(network, loader, optimizer):
+    cumu_loss = 0
+    for _, (data, target) in enumerate(loader):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+
+        # ➡ Forward pass
+        loss = F.nll_loss(network(data), target)
+        cumu_loss += loss.item()
+
+        # ⬅ Backward pass + weight update
+        loss.backward()
+        optimizer.step()
+
+        wandb.log({"batch loss": loss.item()})
+
+    return cumu_loss / len(loader)
+
+wandb.agent(sweep_id, train, count=5)
+
+
+            for epoch in range(1, num_epochs + 1):
+                self.metrics_history['epochs'].append(epoch)
+                train_loss = self.train_epoch(epoch)
+                val_loss = self.evaluate(epoch, phase='val')
+
+                if self.scheduler:
+                    self.scheduler.step()
