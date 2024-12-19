@@ -48,6 +48,7 @@ class ModelTrainer:
         optimizer: Optional[torch.optim.Optimizer] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         batch_size: int = 32,
+        sweep: bool = False,           # NEW
         verbose: bool = True,
         save_metrics: bool = True,
         early_stopping_patience: int = 5,
@@ -68,6 +69,7 @@ class ModelTrainer:
             optimizer (torch.optim.Optimizer, optional): The optimizer. Defaults to Adam.
             scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
             batch_size (int): Batch size for data loaders.
+            sweep (bool): If True, uses W&B configurations for training.  # NEW
             verbose (bool): If True, prints training progress.
             save_metrics (bool): If True, saves the metrics visualization.
             early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
@@ -78,12 +80,29 @@ class ModelTrainer:
             wandb_project (Optional[str]): Name of the W&B project to log to.
             wandb_entity (Optional[str]): W&B username or team name.
         """
+
+        if sweep:
+            wandb.init()  # initialize W&B
+            config = wandb.config  # retrieve sweep config
+
+            # override hyperparameters with config values if present
+            batch_size = config.get("batch_size", batch_size)
+            learning_rate = config.get("learning_rate", 1e-4)
+            early_stopping_patience = config.get("early_stopping_patience", early_stopping_patience)
+            early_stopping_delta = config.get("early_stopping_delta", early_stopping_delta)
+
+            # initialize optimizer with learning rate from config
+            if optimizer is None:
+                optimizer = Adam(model.parameters(), lr=learning_rate)
+
         self.model = model.to(device)
         self.device = device
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
         self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
+
         self.scheduler = scheduler
         self.batch_size = batch_size
+
         self.verbose = verbose
         self.save_metrics = save_metrics       
         self.metrics = metrics if metrics else [accuracy]
@@ -108,6 +127,15 @@ class ModelTrainer:
 
         self.interrupted = False
         signal.signal(signal.SIGINT, self._handle_interrupt)
+
+        if sweep:
+            # log hyperparameters
+            wandb.config.update({
+                "batch_size": self.batch_size,
+                "learning_rate": self.optimizer.param_groups[0]["lr"],
+                "early_stopping_patience": self.early_stopping.patience,
+                "early_stopping_delta": self.early_stopping.delta
+            })
 
     def _handle_interrupt(self, signum, frame):
         print("\nTraining interrupted. Cleaning up...")

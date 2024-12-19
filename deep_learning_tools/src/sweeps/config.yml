@@ -40,3 +40,5 @@ parameters:
     values:
       - StepLR
     distribution: categorical
+  epochs:
+    values: [10, 20, 30]
