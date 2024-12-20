@@ -19,7 +19,7 @@ def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
     run = wandb.init(
         config=config,
         reinit=True,
-        dir=trainer.logger_manager.logger.log_dir
+        dir=trainer.logger_manager.logger.log_dir  # Keep individual runs in logs/wandb
     )
     try:
         yield run
@@ -56,12 +56,11 @@ def run_sweep(trainer: "ModelTrainer"):
     ))
 
     try:
-        # Create sweep
+        # Create sweep - let it use default wandb/ directory for sweep configs
         sweep_id = wandb.sweep(
             sweep=sweep_config,
             project=trainer.logger_manager.wandb_project,
-            entity=trainer.logger_manager.wandb_entity,
-            settings=wandb.Settings(dir=trainer.logger_manager.logger.log_dir)  # Use the same log directory
+            entity=trainer.logger_manager.wandb_entity
         )
         
         print(f"sweep url: https://wandb.ai/{trainer.logger_manager.wandb_entity}/{trainer.logger_manager.wandb_project}/sweeps/{sweep_id}")
@@ -86,16 +85,15 @@ def run_sweep(trainer: "ModelTrainer"):
                 traceback.print_exc()
 
         print("\nStarting sweep...")
-        # Run the sweep agent with error handling
+        # Run the sweep agent with default wandb/ directory for sweep configs
         try:
-            count = get_count()  # Use get_count function
+            count = get_count()
             print(f"Running {count} trials...")
             
             wandb.agent(
                 sweep_id, 
                 function=sweep_train,
-                count=count,  # Specify the number of trials
-                settings=wandb.Settings(dir=trainer.logger_manager.logger.log_dir)  # Use the same log directory
+                count=count
             )
             
             print("\nSweep completed successfully!")

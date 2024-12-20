@@ -26,15 +26,15 @@ class WandBLogger(BaseLogger):
             run_id (str): Unique identifier for this run
             project (str): W&B project name
             entity (str, optional): W&B username or team name
-            log_dir (str): Local directory for logs
+            log_dir (str): Local directory for logs (should already include wandb subdirectory)
             **kwargs: Additional arguments passed to wandb.init
         
         Note:
             Ensure you have set up your W&B account and logged in using 'wandb login'.
             For more details, visit: https://docs.wandb.ai/quickstart
         """
-        # ensure logs are saved in the wandb subdirectory
-        self.log_dir = os.path.join(log_dir, "wandb")
+        # Use the directory exactly as provided
+        self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
 
         self._validate_wandb_login()
@@ -44,7 +44,7 @@ class WandBLogger(BaseLogger):
                 project=project,
                 entity=entity,
                 name=run_id,
-                dir=self.log_dir,  # use the wandb subdirectory
+                dir=log_dir,  # Use the directory as provided
                 reinit=True,
                 notes="Training deep CNNs with optimized W&B setup",
                 tags=["cnn", "deep_learning", "experiment1"],

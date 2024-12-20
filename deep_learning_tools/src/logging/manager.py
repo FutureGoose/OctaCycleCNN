@@ -8,6 +8,7 @@ from .base import BaseLogger
 from .factory import create_logger
 from .wandb_logger import WandBLogger
 from datetime import datetime
+import os
 
 class LoggerManager:
     """
@@ -30,7 +31,8 @@ class LoggerManager:
         self, 
         logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
         wandb_project: Optional[str] = None,  # renamed to be explicit
-        wandb_entity: Optional[str] = None,   # renamed to be explicit
+        wandb_entity: Optional[str] = None,   # renamed to be explicit,
+        log_dir: str = "logs",
         **kwargs
     ):
         """Initialize the logger manager.
@@ -39,26 +41,39 @@ class LoggerManager:
             logger_type: Type of logger to use ("file", "wandb", or "tensorboard")
             wandb_project: Name of the W&B project to log to (required if using wandb)
             wandb_entity: W&B username or team name (optional)
+            log_dir: Base directory for logs (e.g., "logs")
             **kwargs: Additional arguments passed to the logger
         """
         self.logger_type = logger_type
-        self.wandb_project = wandb_project   # new
-        self.wandb_entity = wandb_entity     # new
+        self.wandb_project = wandb_project
+        self.wandb_entity = wandb_entity
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         if logger_type == "wandb":
             if wandb_project is None:
                 raise ValueError("wandb_project must be specified when using wandb logger")
-                
+            
+            # For wandb, we create the logs/wandb directory structure
+            # This is the ONLY place where we add the wandb subdirectory
+            #wandb_log_dir = os.path.join(log_dir, "wandb")
+            os.makedirs(log_dir, exist_ok=True)
+            
             self.logger = create_logger(
                 logger_type,
                 run_id=run_id,
                 project=wandb_project,
                 entity=wandb_entity,
+                log_dir=log_dir,  # WandBLogger will use this directory as-is
                 **kwargs
             )
         else:
-            self.logger = create_logger(logger_type, run_id=run_id, **kwargs)
+            # For other loggers, let them handle their own directory structure
+            self.logger = create_logger(
+                logger_type,
+                run_id=run_id,
+                log_dir=log_dir,
+                **kwargs
+            )
 
     def close(self) -> None:
         """Close the logger if it supports closing e.g. tensorboard."""
