@@ -17,8 +17,6 @@ from .sweep_config import sweep_config, get_count
 def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
     """Context manager for wandb runs."""
     run = wandb.init(
-        project=trainer.logger_manager.wandb_project,
-        entity=trainer.logger_manager.wandb_entity,
         config=config,
         reinit=True
     )
