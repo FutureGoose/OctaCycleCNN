@@ -4,13 +4,31 @@ import torch.nn as nn
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import StepLR
 import sys
+import os
+import traceback
 from wandb.errors import CommError, Error as WandbError
+from contextlib import contextmanager
 
 if TYPE_CHECKING:
     from src.training.trainer import ModelTrainer
 
 # import sweep configuration
 from .sweep_config import sweep_config
+
+@contextmanager
+def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
+    """Context manager for wandb runs."""
+    run = wandb.init(
+        project=trainer.logger_manager.wandb_project,
+        entity=trainer.logger_manager.wandb_entity,
+        config=config,
+        reinit=True
+    )
+    try:
+        yield run
+    finally:
+        if wandb.run is not None:
+            wandb.finish()
 
 def build_optimizer(network: nn.Module, optimizer_name: str, learning_rate: float):
     """Utility function to build the optimizer."""
@@ -24,6 +42,9 @@ def build_optimizer(network: nn.Module, optimizer_name: str, learning_rate: floa
 def train_function(trainer: "ModelTrainer", config: Dict[str, Any] = None):
     """Training function that will be called by the sweep."""
     try:
+        # print run info
+        print(f"\nrun {wandb.run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.5f}, optimizer: {config.optimizer}")
+        
         # update trainer's hyperparameters based on sweep config
         trainer.batch_size = config.batch_size
         trainer.optimizer = build_optimizer(
@@ -39,53 +60,31 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any] = None):
             training_set=trainer.training_set,
             val_set=trainer.val_set,
             num_epochs=config.epochs,
-            scheduler_step=None
+            scheduler_step=True  # enable scheduler stepping
         )
         
-        # log final metrics
-        wandb.log({
-            "final_train_loss": metrics["train_loss"][-1],
-            "final_val_loss": metrics["val_loss"][-1],
-            "final_train_acc": metrics["train_acc"][-1],
-            "final_val_acc": metrics["val_acc"][-1]
+        # log metrics for each epoch
+        for epoch in range(len(metrics["train_loss"])):
+            wandb.log({
+                "epoch": epoch,
+                "train_loss": metrics["train_loss"][epoch],
+                "val_loss": metrics["val_loss"][epoch],
+                "train_acc": metrics["train_acc"][epoch],
+                "val_acc": metrics["val_acc"][epoch]
+            })
+        
+        # log best metrics in summary
+        wandb.run.summary.update({
+            "best_val_loss": min(metrics["val_loss"]),
+            "best_val_acc": max(metrics["val_acc"]),
+            "best_train_loss": min(metrics["train_loss"]),
+            "best_train_acc": max(metrics["train_acc"])
         })
 
     except Exception as e:
         print(f"error during training: {str(e)}")
-        import traceback
         traceback.print_exc()
-        return None
-
-def get_or_create_sweep(project: str, entity: Optional[str] = None) -> str:
-    """Get existing sweep ID or create a new one."""
-    api = wandb.Api()
-    
-    # construct the path to check for existing sweeps
-    path = f"{entity}/{project}" if entity else project
-    
-    try:
-        # get list of sweeps for this project
-        sweeps = api.sweeps(path=path)
-        
-        # look for an active sweep with matching configuration
-        for sweep in sweeps:
-            if (sweep.state == 'running' and 
-                sweep.config.get('method') == sweep_config.get('method') and
-                sweep.config.get('metric') == sweep_config.get('metric')):
-                print(f"\nresuming existing sweep: {sweep.id}")
-                return sweep.id
-                
-    except Exception as e:
-        print(f"error checking existing sweeps: {str(e)}")
-    
-    # if no matching sweep found or error occurred, create new one
-    sweep_id = wandb.sweep(
-        sweep=sweep_config,
-        project=project,
-        entity=entity
-    )
-    print(f"\ncreated new sweep: {sweep_id}")
-    return sweep_id
+        raise  # re-raise the exception
 
 def run_sweep(trainer: "ModelTrainer"):
     """Initializes and runs the W&B sweep using the provided trainer."""
@@ -96,69 +95,76 @@ def run_sweep(trainer: "ModelTrainer"):
     if wandb.run is not None:
         wandb.finish()
 
+    # configure wandb settings globally
+    os.environ["WANDB_SILENT"] = "true"
+    wandb.setup(settings=wandb.Settings(
+        _disable_stats=False,  # enable stats for better tracking
+        _disable_meta=False,   # enable meta for better reproducibility
+        disable_code=False,    # track code for versioning
+        disable_git=False,     # track git info for versioning
+    ))
+
     try:
-        # get existing sweep or create new one
-        sweep_id = get_or_create_sweep(
+        # create sweep
+        sweep_id = wandb.sweep(
+            sweep=sweep_config,
             project=trainer.logger_manager.wandb_project,
             entity=trainer.logger_manager.wandb_entity
         )
-        print(f"view sweep at: https://wandb.ai/{trainer.logger_manager.wandb_entity}/{trainer.logger_manager.wandb_project}/sweeps/{sweep_id}")
+        
+        print(f"sweep url: https://wandb.ai/{trainer.logger_manager.wandb_entity}/{trainer.logger_manager.wandb_project}/sweeps/{sweep_id}")
 
         def sweep_train():
             """Function to be executed for each sweep run."""
             try:
-                # initialize a new wandb run within the sweep
-                with wandb.init(reinit=True) as run:
+                with wandb_run(trainer, wandb.config) as run:
                     if run is None:
                         print("failed to initialize wandb run")
                         return
 
+                    # access config after wandb.init()
                     config = wandb.config
-                    print(f"\nstarting run with config:")
-                    for key, value in dict(config).items():
-                        print(f"  {key}: {value}")
-                    
+                    print(f"\nrun {run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.5f}, optimizer: {config.optimizer}")
+
                     train_function(trainer, config)
 
             except (CommError, WandbError) as e:
                 print(f"wandb error during sweep run: {str(e)}")
+                raise  # re-raise to ensure errors are not silently ignored
             except KeyboardInterrupt:
                 print("\nsweep interrupted by user")
-                if wandb.run is not None:
-                    wandb.finish()
-                return
+                raise  # re-raise to ensure proper cleanup
             except Exception as e:
                 print(f"error during sweep run: {str(e)}")
-                import traceback
                 traceback.print_exc()
+                raise  # re-raise to ensure errors are not silently ignored
 
-        print("\nstarting sweep agent...")
+        print("\nstarting sweep...")
         # run the sweep agent with error handling
         try:
+            count = sweep_config.get('count', 20)
+            print(f"running {count} trials...")
+            
             wandb.agent(
                 sweep_id, 
                 function=sweep_train,
-                count=sweep_config.get('count', 20),
-                project=trainer.logger_manager.wandb_project,
-                entity=trainer.logger_manager.wandb_entity
+                count=count
             )
+            
+            print("\nsweep completed successfully!")
+            print(f"view results at: https://wandb.ai/{trainer.logger_manager.wandb_entity}/{trainer.logger_manager.wandb_project}/sweeps/{sweep_id}")
+            print("\ntip: in the sweep page, look at the parallel coordinates plot to find the best parameters")
+            print("the best parameters will be those that minimize val_loss and maximize val_acc")
+
         except KeyboardInterrupt:
             print("\nsweep interrupted by user")
-            if wandb.run is not None:
-                wandb.finish()
-            return
+            raise  # re-raise to ensure proper cleanup
         except Exception as e:
             print(f"error during sweep agent execution: {str(e)}")
-            import traceback
             traceback.print_exc()
-            if wandb.run is not None:
-                wandb.finish()
-            raise
+            raise  # re-raise to ensure errors are not silently ignored
 
     except Exception as e:
         print(f"failed to initialize sweep: {str(e)}")
-        import traceback
         traceback.print_exc()
-        if wandb.run is not None:
-            wandb.finish()
         raise
