@@ -140,6 +140,9 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
     # log epoch metrics if logger type is wandb
     if trainer.logger_manager.logger_type == "wandb":
         wandb.log({"epoch_loss": average_loss, "epoch": epoch})
+        # NEW
+        for name in trainer.metrics_names:
+            wandb.log({f"train_{name}": trainer.metrics_history[f'train_{name}'][-1]})
 
     return average_loss
 
@@ -170,6 +173,11 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
     for name in trainer.metrics_names:
         avg_metric = metrics_results[name] / len(loader)
         trainer.metrics_history[f'{phase}_{name}'].append(avg_metric)
+    # NEW
+    if trainer.logger_manager.logger_type == "wandb":
+        wandb.log({"val_loss": average_loss})  # Explicitly log val_loss
+        for name in trainer.metrics_names:
+            wandb.log({f"val_{name}": trainer.metrics_history[f'{phase}_{name}'][-1]})
 
     if trainer.verbose:
         metrics_str = ', '.join([f"{name}: {trainer.metrics_history[f'{phase}_{name}'][-1]:.2f}%" 
