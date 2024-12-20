@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from src.training.trainer import ModelTrainer
 
 # import sweep configuration
-from .sweep_config import sweep_config
+from .sweep_config import sweep_config, get_count
 
 @contextmanager
 def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
@@ -44,7 +44,7 @@ def run_sweep(trainer: "ModelTrainer"):
     if trainer.logger_manager.wandb_project is None:
         raise ValueError("wandb_project must be specified when using sweep")
 
-    # Ensure we're starting with a clean state
+    # ensure we're starting with a clean state
     if wandb.run is not None:
         wandb.finish()
 
@@ -88,13 +88,13 @@ def run_sweep(trainer: "ModelTrainer"):
         print("\nStarting sweep...")
         # Run the sweep agent with error handling
         try:
-            count = sweep_config.get('count', 20)
+            count = get_count()  # Use get_count function
             print(f"Running {count} trials...")
             
             wandb.agent(
                 sweep_id, 
                 function=sweep_train,
-                count=count
+                count=count  # Specify the number of trials
             )
             
             print("\nSweep completed successfully!")
