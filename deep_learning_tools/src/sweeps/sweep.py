@@ -39,8 +39,8 @@ def build_optimizer(network: nn.Module, optimizer_name: str, learning_rate: floa
 
 def run_sweep(trainer: "ModelTrainer"):
     """Initializes and runs the W&B sweep using the provided trainer."""
-    if trainer.logger_manager.wandb_project is None:
-        raise ValueError("wandb_project must be specified when using sweep")
+    if trainer.logger_manager.logger_type != "wandb":
+        raise ValueError("LoggerManager must be set to 'wandb' for running sweeps")
 
     # ensure we're starting with a clean state
     if wandb.run is not None:
