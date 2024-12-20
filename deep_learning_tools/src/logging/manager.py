@@ -90,17 +90,29 @@ class LoggerManager:
         Returns:
             Dict[str, Any]: Dictionary of hyperparameters.
         """
+
+        # get scheduler info safely
+        scheduler_info = {}
+        if trainer.scheduler:
+            scheduler_type = type(trainer.scheduler).__name__
+            scheduler_info = {
+            'scheduler_type': scheduler_type,
+            # for StepLR
+            'step_size': getattr(trainer.scheduler, 'step_size', None),
+            'gamma': getattr(trainer.scheduler, 'gamma', None),
+            # for LambdaLR
+            'lr_lambda': str(getattr(trainer.scheduler, 'lr_lambdas', None))
+        }
         return {
             'batch_size': trainer.batch_size,
             'learning_rate': trainer.optimizer.param_groups[0]['lr'],
             'weight_decay': trainer.optimizer.param_groups[0].get('weight_decay', 0),
-            'scheduler_step_size': trainer.scheduler.step_size if trainer.scheduler else None,
-            'scheduler_gamma': trainer.scheduler.gamma if trainer.scheduler else None,
             'early_stopping_patience': trainer.early_stopping.patience,
             'early_stopping_delta': trainer.early_stopping.delta,
             'metrics': trainer.metrics_names,
             'optimizer': type(trainer.optimizer).__name__,
-            'scheduler': type(trainer.scheduler).__name__ if trainer.scheduler else None
+            'scheduler': type(trainer.scheduler).__name__ if trainer.scheduler else None,
+            **scheduler_info  # include scheduler-specific parameters
         }
  
     def collect_model_summary(self, trainer: "ModelTrainer") -> str:
