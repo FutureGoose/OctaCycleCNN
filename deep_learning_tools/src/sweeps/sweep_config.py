@@ -17,8 +17,9 @@ sweep_config: Dict[str, Any] = {
         'dropout': {
             'values': [0.3, 0.4, 0.5]
         },
+        # Made 'epochs' a hyperparameter instead of fixed value
         'epochs': {
-            'value': 1
+            'values': [10, 20, 30]
         },
         'fc_layer_size': {
             'values': [128, 256, 512]
