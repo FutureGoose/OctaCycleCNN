@@ -88,7 +88,7 @@ class ModelTrainer:
         self.save_metrics = save_metrics       
         self.metrics = metrics if metrics else [accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
-
+        
         self.logger_manager = LoggerManager(
             logger_type=logger_type, 
             log_dir=log_dir,
