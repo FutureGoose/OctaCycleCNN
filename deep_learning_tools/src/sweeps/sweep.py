@@ -139,7 +139,7 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
 
     # log epoch metrics if logger type is wandb
     if trainer.logger_manager.logger_type == "wandb":
-        wandb.log({"epoch_loss": average_loss, "epoch": epoch})
+        wandb.log({"train_loss": average_loss, "epoch": epoch})
         # NEW
         for name in trainer.metrics_names:
             wandb.log({f"train_{name}": trainer.metrics_history[f'train_{name}'][-1]})
@@ -175,7 +175,7 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
         trainer.metrics_history[f'{phase}_{name}'].append(avg_metric)
     # NEW
     if trainer.logger_manager.logger_type == "wandb":
-        wandb.log({"val_loss": average_loss})  # Explicitly log val_loss
+        wandb.log({"val_loss": average_loss})  # Consolidated logging
         for name in trainer.metrics_names:
             wandb.log({f"val_{name}": trainer.metrics_history[f'{phase}_{name}'][-1]})
 
@@ -221,7 +221,7 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
             if trainer.scheduler:
                 trainer.scheduler.step()
 
-            trainer.logger_manager.on_epoch_end(trainer, epoch)
+            # trainer.logger_manager.on_epoch_end(trainer, epoch)
 
             if trainer.early_stopping.early_stop:
                 break
