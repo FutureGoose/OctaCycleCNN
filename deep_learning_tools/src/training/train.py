@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 # append the package root to sys.path
-package_root = Path('/home/gustaf/projects/deeplearning/deep_learning_tools')
+package_root = Path(__file__).parent.parent.parent  # navigate up to package root
 sys.path.append(str(package_root))
 
 from src import ModelTrainer  # adjust the import based on your package structure
@@ -38,11 +38,11 @@ def main():
     # define normalization transform
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        transforms.Normalize((0.5,), (0.5,))  # normalize to [-1,1] range
     ])
 
-    # load datasets with the new data root
-    data_path = '/home/gustaf/projects/deeplearning/data'
+    # load datasets from data directory relative to project root
+    data_path = package_root / 'data'
     trainset = datasets.FashionMNIST(root=data_path, train=True, download=True, transform=transform)
     valset = datasets.FashionMNIST(root=data_path, train=False, download=True, transform=transform)
 

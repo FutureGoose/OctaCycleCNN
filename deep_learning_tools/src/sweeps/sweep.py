@@ -19,7 +19,7 @@ def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
     run = wandb.init(
         config=config,
         reinit=True,
-        dir=trainer.logger_manager.logger.log_dir  # Keep individual runs in logs/wandb
+        dir=trainer.logger_manager.logger.log_dir  # keep individual runs in logs/wandb
     )
     try:
         yield run
@@ -47,7 +47,7 @@ def run_sweep(trainer: "ModelTrainer"):
     if wandb.run is not None:
         wandb.finish()
 
-    # Configure wandb settings globally
+    # configure wandb settings globally
     wandb.setup(settings=wandb.Settings(
         _disable_stats=False,  # enable stats for better tracking
         _disable_meta=False,   # enable meta for better reproducibility
@@ -56,7 +56,7 @@ def run_sweep(trainer: "ModelTrainer"):
     ))
 
     try:
-        # Create sweep - let it use default wandb/ directory for sweep configs
+        # create sweep
         sweep_id = wandb.sweep(
             sweep=sweep_config,
             project=trainer.logger_manager.wandb_project,
@@ -73,11 +73,11 @@ def run_sweep(trainer: "ModelTrainer"):
                         print("Failed to initialize W&B run.")
                         return
 
-                    # Access config after wandb.init()
+                    # access config after wandb.init()
                     config = wandb.config
                     print(f"\nrun {run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.5f}, optimizer: {config.optimizer}")
 
-                    # Execute the training function for this trial
+                    # execute the training function for this trial
                     train_function(trainer, config)
 
             except Exception as e:
@@ -85,7 +85,7 @@ def run_sweep(trainer: "ModelTrainer"):
                 traceback.print_exc()
 
         print("\nStarting sweep...")
-        # Run the sweep agent with default wandb/ directory for sweep configs
+
         try:
             count = get_count()
             print(f"Running {count} trials...")
@@ -141,7 +141,7 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
     # log epoch metrics if logger type is wandb
     if trainer.logger_manager.logger_type == "wandb":
         wandb.log({"train_loss": average_loss, "epoch": epoch})
-        # NEW
+
         for name in trainer.metrics_names:
             wandb.log({f"train_{name}": trainer.metrics_history[f'train_{name}'][-1]})
 
@@ -174,9 +174,9 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
     for name in trainer.metrics_names:
         avg_metric = metrics_results[name] / len(loader)
         trainer.metrics_history[f'{phase}_{name}'].append(avg_metric)
-    # NEW
+
     if trainer.logger_manager.logger_type == "wandb":
-        wandb.log({"val_loss": average_loss})  # Consolidated logging
+        wandb.log({"val_loss": average_loss})
         for name in trainer.metrics_names:
             wandb.log({f"val_{name}": trainer.metrics_history[f'{phase}_{name}'][-1]})
 
@@ -200,7 +200,7 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
 def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
     """Training function that will be called by the sweep."""
     try:
-        # Update trainer with config parameters
+        # update trainer with config parameters
         trainer.batch_size = config["batch_size"]
         trainer.optimizer = build_optimizer(
             network=trainer.model,
@@ -213,7 +213,7 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
         # Set up data loaders
         trainer.setup_data_loaders(training_set=trainer.training_set, val_set=trainer.val_set)
 
-        # Train for the specified number of epochs
+        # train for the specified number of epochs
         for epoch in range(1, config["epochs"] + 1):
             trainer.metrics_history['epochs'].append(epoch)
             train_loss = sweep_train_epoch(trainer, epoch)
@@ -222,12 +222,10 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
             if trainer.scheduler:
                 trainer.scheduler.step()
 
-            # trainer.logger_manager.on_epoch_end(trainer, epoch)
-
             if trainer.early_stopping.early_stop:
                 break
 
     except Exception as e:
         print(f"Error during training: {str(e)}")
         traceback.print_exc()
-        raise  # Re-raise the exception to ensure the sweep notices the failure
+        raise  # re-raise the exception to ensure the sweep notices the failure

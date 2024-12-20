@@ -43,7 +43,6 @@ class FileLogger(BaseLogger):
                 f.write(f"\n{header}\n")
             f.write(content)
             if header:
-                # f.write("\n" + "=" * len(header) + "\n\n")
                 f.write("\n" * 2)
             else:
                 f.write("\n")
@@ -89,7 +88,6 @@ class FileLogger(BaseLogger):
 
     def cleanup(self) -> None:
         """Remove temporary files created during logging."""
-        # Example: Remove any temporary files if they exist
         temp_files = [os.path.join(self.log_dir, f) for f in os.listdir(self.log_dir) if f.endswith('.tmp')]
         for temp_file in temp_files:
             try:
