@@ -3,8 +3,71 @@ import itertools
 
 def get_count() -> int:
     """Returns the number of trials to run in the sweep."""
-    return 2  # specify the number of trials here
+    return 100  # specify the number of trials here
 
+
+sweep_config: Dict[str, Any] = {
+    'method': 'bayes',
+    'metric': {
+        'goal': 'minimize',
+        'name': 'val_loss'
+    },
+    'parameters': {
+        'epochs': {
+            'values': [50]
+        },
+        'scheduler': {
+            'values': ['StepLR'],
+            'distribution': 'categorical'
+        },
+        'scheduler_type': {
+            'values': ['StepLR'],
+            'distribution': 'categorical'
+        },
+        'gamma': {
+            'min': 0.05,
+            'max': 0.2,
+            'distribution': 'uniform'
+        },
+        'early_stopping_patience': {
+            'min': 3,
+            'max': 10,
+            'distribution': 'int_uniform'
+        },
+        'early_stopping_delta': {
+            'min': 0.00005,
+            'max': 0.0002,
+            'distribution': 'uniform'
+        },
+        'learning_rate': {
+            'min': 0.0005,
+            'max': 0.002,
+            'distribution': 'uniform'
+        },
+        'optimizer': {
+            'values': ['Adam'],
+            'distribution': 'categorical'
+        },
+        'weight_decay': {
+            'min': 0.00005,
+            'max': 0.0002,
+            'distribution': 'uniform'
+        },
+        'batch_size': {
+            'values': [32, 64, 128],
+            'distribution': 'categorical'
+        },
+        'step_size': {
+            'min': 5,
+            'max': 20,
+            'distribution': 'int_uniform'
+        }
+    }
+}
+
+
+'''
+# working basic params
 sweep_config: Dict[str, Any] = {
     'method': 'random',
     'metric': {
@@ -37,3 +100,4 @@ sweep_config: Dict[str, Any] = {
         }
     }
 }
+'''
