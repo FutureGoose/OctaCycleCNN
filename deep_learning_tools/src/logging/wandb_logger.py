@@ -33,7 +33,7 @@ class WandBLogger(BaseLogger):
             Ensure you have set up your W&B account and logged in using 'wandb login'.
             For more details, visit: https://docs.wandb.ai/quickstart
         """
-        # Use the directory exactly as provided
+        # directory exactly as provided
         self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
 
@@ -44,10 +44,10 @@ class WandBLogger(BaseLogger):
                 project=project,
                 entity=entity,
                 name=run_id,
-                dir=log_dir,  # Use the directory as provided
+                dir=log_dir,
                 reinit=True,
                 notes="Training deep CNNs with optimized W&B setup",
-                tags=["cnn", "deep_learning", "experiment1"],
+                tags=["cnn", "deep_learning", "neural_network"],
                 **kwargs
             )
         except wandb.errors.CommError as e:
@@ -71,7 +71,7 @@ class WandBLogger(BaseLogger):
         """Set up model gradient and parameter tracking."""
         wandb.watch(
             model,
-            log="all",  # log gradients and parameters
+            log="all",    # log gradients and parameters
             log_freq=100  # log every 100 batches
         )
 
