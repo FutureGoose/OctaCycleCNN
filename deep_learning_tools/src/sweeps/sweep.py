@@ -6,6 +6,7 @@ from torch.optim.lr_scheduler import StepLR
 import traceback
 from contextlib import contextmanager
 import torch
+from ..training.early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from src.training.trainer import ModelTrainer
@@ -212,6 +213,16 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
 
         # set up data loaders
         trainer.setup_data_loaders(training_set=trainer.training_set, val_set=trainer.val_set)
+
+        # reset EarlyStopping to ensure independence between runs
+        trainer.early_stopping = EarlyStopping(
+            patience=config.get("early_stopping_patience", 5),
+            delta=config.get("early_stopping_delta", 1e-4),
+            verbose=trainer.verbose,
+            path=trainer.early_stopping.path  # retain the checkpoint path
+        )
+        if trainer.verbose:
+            print(f"Initialized EarlyStopping with patience={config.get('early_stopping_patience', 5)} and delta={config.get('early_stopping_delta', 1e-4)}")
 
         # train for the specified number of epochs
         num_epochs = config.get("epochs", 50)
