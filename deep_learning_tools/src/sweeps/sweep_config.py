@@ -30,14 +30,12 @@ sweep_config: Dict[str, Any] = {
             'distribution': 'uniform'
         },
         'early_stopping_patience': {
-            'min': 3,
-            'max': 10,
-            'distribution': 'int_uniform'
+            'values': [5],
+            'distribution': 'categorical'
         },
         'early_stopping_delta': {
-            'min': 0.00005,
-            'max': 0.0002,
-            'distribution': 'uniform'
+            'values': [1e-4],
+            'distribution': 'categorical'
         },
         'learning_rate': {
             'min': 0.0005,

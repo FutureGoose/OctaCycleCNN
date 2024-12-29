@@ -210,7 +210,7 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
         if trainer.scheduler:
             trainer.scheduler = StepLR(trainer.optimizer, step_size=1, gamma=0.75)
 
-        # Set up data loaders
+        # set up data loaders
         trainer.setup_data_loaders(training_set=trainer.training_set, val_set=trainer.val_set)
 
         # train for the specified number of epochs
