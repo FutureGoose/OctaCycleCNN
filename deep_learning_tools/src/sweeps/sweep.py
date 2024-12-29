@@ -11,7 +11,6 @@ from ..training.early_stopping import EarlyStopping
 if TYPE_CHECKING:
     from src.training.trainer import ModelTrainer
 
-# import sweep configuration
 from .sweep_config import sweep_config, get_count
 
 @contextmanager
