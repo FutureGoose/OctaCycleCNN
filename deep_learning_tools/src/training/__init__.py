@@ -1,3 +1,5 @@
+"""Training module containing model training and evaluation utilities."""
+
 from .trainer import ModelTrainer
 from .early_stopping import EarlyStopping
 from .metrics import accuracy, precision, recall, f1_score
