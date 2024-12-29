@@ -221,8 +221,8 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
             verbose=trainer.verbose,
             path=trainer.early_stopping.path  # retain the checkpoint path
         )
-        if trainer.verbose:
-            print(f"Initialized EarlyStopping with patience={config.get('early_stopping_patience', 5)} and delta={config.get('early_stopping_delta', 1e-4)}")
+        # if trainer.verbose:
+            # print(f"Initialized EarlyStopping with patience={config.get('early_stopping_patience', 5)} and delta={config.get('early_stopping_delta', 1e-4)}")
 
         # train for the specified number of epochs
         num_epochs = config.get("epochs", 50)
