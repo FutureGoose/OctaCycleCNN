@@ -14,6 +14,7 @@ import os
 import sys
 import wandb
 import numpy as np
+from ..utils.karpathy_verification import KarpathyVerification
 
 if TYPE_CHECKING:
     from ..sweeps.sweep import run_sweep
@@ -56,7 +57,8 @@ class ModelTrainer:
         wandb_entity: Optional[str] = None,
         sweep: bool = False,
         seed: Optional[int] = None,
-        strict_reproducibility: bool = False
+        strict_reproducibility: bool = False,
+        run_karpathy_checks: bool = False
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -81,6 +83,7 @@ class ModelTrainer:
             seed (Optional[int]): Random seed for reproducibility. If None, no seed is set.
             strict_reproducibility (bool): If True, enables strict reproducibility at the cost of performance.
                                          This enforces deterministic algorithms and may be slower.
+            run_karpathy_checks (bool): If True, enables Karpathy verification checks.
         """
         self.model = model.to(device)
         self.device = device
@@ -123,6 +126,9 @@ class ModelTrainer:
         self.interrupted = False
         signal.signal(signal.SIGINT, self._handle_interrupt)
 
+        self.run_karpathy_checks = run_karpathy_checks
+        self.prediction_history = []
+        
     def _handle_interrupt(self, signum, frame):
         print("\nTraining interrupted. Cleaning up...")
         self.interrupted = True
@@ -146,36 +152,6 @@ class ModelTrainer:
         if self.train_loader is None or self.val_loader is None:
             raise ValueError("Data loaders not initialized")
         
-    def verify_init_loss(self) -> float:
-        """
-        Verifies the loss at initialization.
-        For classification with CrossEntropyLoss, should be close to -log(1/n_classes).
-        
-        Returns:
-            float: The initial loss value
-        """
-        if not self.train_loader:
-            raise ValueError("DataLoader not initialized. Call setup_data_loaders first.")
-            
-        self.model.eval()
-        with torch.no_grad():
-            # Get a single batch
-            data, targets = next(iter(self.train_loader))
-            data, targets = data.to(self.device), targets.to(self.device)
-            
-            # Get predictions and loss
-            outputs = self.model(data)
-            init_loss = self.criterion(outputs, targets).item()
-            
-            if isinstance(self.criterion, nn.CrossEntropyLoss):
-                n_classes = outputs.size(1)
-                expected_loss = -np.log(1/n_classes)
-                if self.verbose:
-                    print(f"\033[38;5;40mInitial loss: {init_loss:.4f}")
-                    print(f"Expected loss for random predictions: {expected_loss:.4f}\033[0m")
-            
-            return init_loss
-            
     def load_best_model(self) -> None:
         """Loads the best model weights saved by EarlyStopping."""
         if self.early_stopping.best_model_path:
@@ -308,20 +284,46 @@ class ModelTrainer:
         try:
             self.setup_data_loaders(training_set, val_set)
             self.validate_state()
+            
+            # run Karpathy's verification tests if requested
+            if self.run_karpathy_checks:
+                verifier = KarpathyVerification(
+                    model=self.model,
+                    criterion=self.criterion,
+                    optimizer=self.optimizer,
+                    train_loader=self.train_loader,
+                    val_loader=self.val_loader,
+                    device=self.device,
+                    verbose=self.verbose
+                )
+                verification_results = verifier.run_all_verifications()
+                if self.verbose:
+                    print("\033[38;5;40mKarpathy verification tests completed.\033[0m")
+                self.verification_results = verification_results
 
             if self.sweep:
                 self.training_set = training_set
                 self.val_set = val_set
-                from ..sweeps.sweep import run_sweep  # import here to avoid circular import
+                from ..sweeps.sweep import run_sweep
                 run_sweep(self)
-                return self.model  # exit after sweep
+                return self.model
 
             self.logger_manager.on_training_start(self)
+            
+            # store fixed batch for prediction dynamics if Karpathy checks are enabled
+            if self.run_karpathy_checks:
+                self._fixed_batch = next(iter(self.val_loader))
+                self._fixed_data, self._fixed_targets = [x.to(self.device) for x in self._fixed_batch]
 
             for epoch in range(1, num_epochs + 1):
                 self.metrics_history['epochs'].append(epoch)
                 train_loss = self.train_epoch(epoch)
                 val_loss = self.evaluate(epoch, phase='val')
+                
+                # track prediction dynamics if Karpathy checks are enabled
+                if self.run_karpathy_checks:
+                    pred_info = verifier.track_predictions(self._fixed_data, self._fixed_targets)
+                    self.prediction_history.append(pred_info)
 
                 if self.scheduler:
                     self.scheduler.step()
@@ -333,8 +335,12 @@ class ModelTrainer:
 
             # plot metrics
             self.plot()
+            
+            # plot prediction dynamics if Karpathy checks were enabled
+            if self.run_karpathy_checks and self.prediction_history:
+                verifier.plot_prediction_dynamics(self.prediction_history)
 
-            # load the best model parameters (weights, biases, batchnorm, etc.)
+            # load the best model parameters
             self.load_best_model()
 
             # log the existing checkpoint as an artifact if logger type is wandb
@@ -344,6 +350,7 @@ class ModelTrainer:
                 wandb.log_artifact(artifact)
 
             return self.model
+            
         except KeyboardInterrupt:
             print("Training was manually interrupted.")
         except Exception as e:
