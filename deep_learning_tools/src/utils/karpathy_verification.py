@@ -61,12 +61,12 @@ class KarpathyVerification:
         
     def verify_init_loss(self) -> Dict[str, float]:
         """
-        Verifies the loss at initialization and runs input-independent baseline tests.
+        Verifies that the loss starts at the correct value.
         For classification with CrossEntropyLoss, should be close to -log(1/n_classes).
         """
         self._print("\n🔍 Checking Initial Loss", bold=True)
         self._print("Initial loss should be close to -log(1/n_classes) for random predictions.")
-        self._print("Zero-input loss should be higher than normal input loss, showing the model uses input information.\n")
+        self._print("This verifies proper weight initialization.\n")
             
         self.model.eval()
         results = {}
@@ -94,16 +94,45 @@ class KarpathyVerification:
                 if loss_deviation > 0.2:
                     self._print(f"⚠️  Initial loss deviates by {loss_deviation*100:.1f}% from expected!", color="yellow")
                     self._print("This might indicate improper weight initialization.", color="yellow")
+                else:
+                    self._print("✅ Initial loss matches expected value", color="green")
+        
+        return results
+        
+    def verify_input_independence(self) -> Dict[str, float]:
+        """
+        Verifies that the model performs better on real data than zero input.
+        This shows if the model actually extracts information from the input.
+        """
+        self._print("\n🎯 Testing Input Dependence", bold=True)
+        self._print("Model should perform better on real data than zero input.")
+        self._print("This verifies the model actually uses input information.\n")
+        
+        self.model.eval()
+        results = {}
+        
+        with torch.no_grad():
+            # Get a single batch
+            data, targets = next(iter(self.train_loader))
+            data, targets = data.to(self.device), targets.to(self.device)
             
-            # Input-independent baseline (zero input)
+            # Normal forward pass
+            outputs = self.model(data)
+            normal_loss = self.criterion(outputs, targets).item()
+            results['normal_loss'] = normal_loss
+            
+            # Zero input baseline
             zero_data = torch.zeros_like(data)
             zero_outputs = self.model(zero_data)
             zero_loss = self.criterion(zero_outputs, targets).item()
             results['zero_input_loss'] = zero_loss
             
-            self._print(f"Zero input loss: {zero_loss:.4f}", color="green")
-            loss_diff = zero_loss - init_loss
+            # Compare performances
+            loss_diff = zero_loss - normal_loss
             results['loss_difference'] = loss_diff
+            
+            self._print(f"Normal input loss: {normal_loss:.4f}", color="green")
+            self._print(f"Zero input loss: {zero_loss:.4f}", color="green")
             
             if loss_diff < 0:
                 self._print(f"❌ Loss difference is negative: {loss_diff:.4f}", color="red")
@@ -114,9 +143,10 @@ class KarpathyVerification:
                 self._print("3. Ensure model architecture is correct", color="yellow")
             else:
                 self._print(f"✅ Loss difference is positive: {loss_diff:.4f}", color="green")
+                self._print("Model successfully extracts information from input", color="green")
         
         return results
-    
+        
     def track_predictions(self, data: torch.Tensor, targets: torch.Tensor) -> Dict[str, Any]:
         """
         Tracks predictions for a fixed batch of data.
@@ -322,10 +352,13 @@ class KarpathyVerification:
         # 1. Verify initialization loss
         results['init_verification'] = self.verify_init_loss()
         
-        # 2. Visualize batch
+        # 2. Verify input independence
+        results['input_independence'] = self.verify_input_independence()
+        
+        # 3. Visualize batch
         self.visualize_batch(num_samples=visualize_samples)
         
-        # 3. Overfit one batch (optional as it modifies model weights)
+        # 4. Overfit one batch (optional as it modifies model weights)
         if run_overfit_test:
             losses, success = self.overfit_one_batch(max_iters=max_overfit_iters)
             results['overfit_test'] = {
