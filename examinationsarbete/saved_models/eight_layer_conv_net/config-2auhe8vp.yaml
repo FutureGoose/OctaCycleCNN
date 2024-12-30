@@ -1,0 +1,24 @@
+wandb_version: 1
+
+batch_size:
+  value: 128
+early_stopping_delta:
+  value: 0.0001
+early_stopping_patience:
+  value: 5
+epochs:
+  value: 50
+gamma:
+  value: 0.19425991502150264
+learning_rate:
+  value: 0.0007653315205751765
+optimizer:
+  value: Adam
+scheduler:
+  value: StepLR
+scheduler_type:
+  value: StepLR
+step_size:
+  value: 5
+weight_decay:
+  value: 0.00019177699449980827
