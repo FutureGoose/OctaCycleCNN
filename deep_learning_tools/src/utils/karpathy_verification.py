@@ -34,7 +34,7 @@ class KarpathyVerification:
         self.device = device
         self.verbose = verbose
         
-        # Store human baselines for common datasets
+        # store human baselines for common datasets
         self.human_baselines = {
             'MNIST': 99.8,
             'FashionMNIST': 83.5,
@@ -72,11 +72,11 @@ class KarpathyVerification:
         results = {}
         
         with torch.no_grad():
-            # Get a single batch
+            # get a single batch
             data, targets = next(iter(self.train_loader))
             data, targets = data.to(self.device), targets.to(self.device)
             
-            # Normal forward pass
+            # normal forward pass
             outputs = self.model(data)
             init_loss = self.criterion(outputs, targets).item()
             results['initial_loss'] = init_loss
@@ -89,7 +89,7 @@ class KarpathyVerification:
                 self._print(f"Initial loss: {init_loss:.4f}", color="green")
                 self._print(f"Expected loss for random predictions: {expected_loss:.4f}", color="green")
                 
-                # Check if initial loss is reasonable (allow 20% deviation)
+                # check if initial loss is reasonable (allow 20% deviation)
                 loss_deviation = abs(init_loss - expected_loss) / expected_loss
                 if loss_deviation > 0.2:
                     self._print(f"⚠️  Initial loss deviates by {loss_deviation*100:.1f}% from expected!", color="yellow")
@@ -112,22 +112,22 @@ class KarpathyVerification:
         results = {}
         
         with torch.no_grad():
-            # Get a single batch
+            # get a single batch
             data, targets = next(iter(self.train_loader))
             data, targets = data.to(self.device), targets.to(self.device)
             
-            # Normal forward pass
+            # normal forward pass
             outputs = self.model(data)
             normal_loss = self.criterion(outputs, targets).item()
             results['normal_loss'] = normal_loss
             
-            # Zero input baseline
+            # zero input baseline
             zero_data = torch.zeros_like(data)
             zero_outputs = self.model(zero_data)
             zero_loss = self.criterion(zero_outputs, targets).item()
             results['zero_input_loss'] = zero_loss
             
-            # Compare performances
+            # compare performances
             loss_diff = zero_loss - normal_loss
             results['loss_difference'] = loss_diff
             
@@ -169,7 +169,7 @@ class KarpathyVerification:
     def overfit_one_batch(
         self,
         max_iters: int = 1000,
-        target_loss: float = 0.01  # Relaxed target loss
+        target_loss: float = 0.01  # relaxed target loss
     ) -> Tuple[List[float], bool]:
         """
         Attempts to overfit a single batch of data.
@@ -180,7 +180,7 @@ class KarpathyVerification:
         self._print(f"Target loss: {target_loss:.4f}")
         self._print("Loss should decrease rapidly and reach near-zero.\n")
             
-        # Get a single batch
+        # get a single batch
         data, targets = next(iter(self.train_loader))
         data, targets = data.to(self.device), targets.to(self.device)
         
@@ -188,7 +188,7 @@ class KarpathyVerification:
         losses = []
         target_reached = False
         plateau_counter = 0
-        plateau_threshold = 50  # Number of iterations to consider as plateau
+        plateau_threshold = 50  # number of iterations to consider as plateau
         
         for i in range(max_iters):
             self.optimizer.zero_grad()
@@ -203,11 +203,11 @@ class KarpathyVerification:
                 
             losses.append(current_loss)
             
-            # Check for plateaus
+            # check for plateaus
             if len(losses) > plateau_threshold:
                 recent_losses = losses[-plateau_threshold:]
                 loss_std = np.std(recent_losses)
-                if loss_std < 1e-6:  # Very small variation indicates plateau
+                if loss_std < 1e-6:  # very small variation indicates plateau
                     plateau_counter += 1
                 else:
                     plateau_counter = 0
@@ -257,18 +257,18 @@ class KarpathyVerification:
         self._print("2. Labels match the images")
         self._print("3. No unintended transformations\n")
             
-        # Get a single batch
+        # get a single batch
         data, targets = next(iter(self.train_loader))
         
-        # Print data statistics to help debug normalization
+        # print data statistics to help debug normalization
         self._print(f"Data range: [{data.min():.4f}..{data.max():.4f}]", color="green")
         self._print(f"Data mean: {data.mean():.4f}, std: {data.std():.4f}\n", color="green")
         
-        # Limit to num_samples
+        # limit to num_samples
         data = data[:num_samples]
         targets = targets[:num_samples]
         
-        # Create a grid of images
+        # create a grid of images
         num_rows = (num_samples + 3) // 4  # ceil(num_samples/4)
         fig, axes = plt.subplots(num_rows, min(4, num_samples), figsize=(12, 3*num_rows))
         if num_samples == 1:
@@ -279,7 +279,7 @@ class KarpathyVerification:
             img = data[i]
             label = targets[i].item()
             
-            # Convert to numpy and handle different channel configurations
+            # convert to numpy and handle different channel configurations
             if img.shape[0] == 1:  # grayscale
                 img = img.squeeze().numpy()
                 img = self._scale_for_visualization(img)
@@ -309,12 +309,12 @@ class KarpathyVerification:
         losses = [info['loss'] for info in prediction_history]
         predictions = np.array([info['predictions'] for info in prediction_history])
         
-        # Print some statistics
+        # print some statistics
         self._print(f"Initial loss: {losses[0]:.4f}", color="green")
         self._print(f"Final loss: {losses[-1]:.4f}", color="green")
         self._print(f"Loss reduction: {losses[0] - losses[-1]:.4f}\n", color="green")
         
-        # Plot loss dynamics
+        # plot loss dynamics
         plt.figure(figsize=(10, 4))
         plt.subplot(1, 2, 1)
         plt.plot(losses)
@@ -322,7 +322,7 @@ class KarpathyVerification:
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         
-        # Plot prediction dynamics for first few samples
+        # plot prediction dynamics for first few samples
         plt.subplot(1, 2, 2)
         num_samples = min(5, predictions.shape[1])
         for i in range(num_samples):
