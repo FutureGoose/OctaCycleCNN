@@ -87,6 +87,7 @@ class ModelTrainer:
         self.batch_size = batch_size
         self.verbose = verbose
         self.save_metrics = save_metrics
+        self.seed = seed
 
         if seed is not None:
             self._set_random_seed(seed)
@@ -148,8 +149,24 @@ class ModelTrainer:
 
     def setup_data_loaders(self, training_set: Dataset, val_set: Dataset) -> None:
         """Sets up the data loaders for training and validation."""
-        self.train_loader = DataLoader(training_set, batch_size=self.batch_size, shuffle=True)
-        self.val_loader = DataLoader(val_set, batch_size=self.batch_size, shuffle=False)
+        # create a generator for dataloader if seed is set
+        generator = None
+        if self.seed is not None:
+            generator = torch.Generator()
+            generator.manual_seed(self.seed)
+
+        self.train_loader = DataLoader(
+            training_set, 
+            batch_size=self.batch_size, 
+            shuffle=True,
+            generator=generator if self.seed is not None else None,
+            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None
+        )
+        self.val_loader = DataLoader(
+            val_set, 
+            batch_size=self.batch_size, 
+            shuffle=False  # validation set doesn't need shuffling
+        )
 
     def train_epoch(self, epoch: int) -> float:
         """Trains the model for one epoch."""
@@ -167,25 +184,25 @@ class ModelTrainer:
 
             batch_losses.append(loss.item())
 
-            # log metrics for each batch if logger type is wandb
+            # log metrics for each batch if using wandb
             if self.logger_manager.logger_type == "wandb":
                 wandb.log({"batch_loss": loss.item(), "epoch": epoch})
 
         # epoch total loss / number of batches = epoch average loss
         average_loss = sum(batch_losses) / len(self.train_loader)
-        # saving average loss for the epoch
+        # save average loss for the epoch
         self.metrics_history['train_loss'].append(average_loss)
-        # saving all batch losses for the epoch
+        # save all batch losses for the epoch
         self.metrics_history['train_batch_losses'].append(batch_losses)
 
-        # calculate additional metrics
+        # calculate additional metrics on last batch
         outputs_last_batch = outputs
         targets_last_batch = targets
         for metric, name in zip(self.metrics, self.metrics_names):
             metric_value = metric(outputs_last_batch, targets_last_batch)
             self.metrics_history[f'train_{name}'].append(metric_value)
 
-        # log epoch metrics if logger type is wandb
+        # log epoch metrics if using wandb
         if self.logger_manager.logger_type == "wandb":
             wandb.log({"epoch_loss": average_loss, "epoch": epoch})
 
