@@ -18,7 +18,7 @@ def calculate_mean_std(dataset):
 
 
 def get_transforms(normalize=True, mean=None, std=None):
-    """create a composition of transforms with optional normalization."""
+    """Create a composition of transforms with optional normalization."""
     transform_list = [transforms.ToTensor()]
     if normalize and mean is not None and std is not None:
         transform_list.append(transforms.Normalize((mean,), (std,)))
@@ -26,20 +26,46 @@ def get_transforms(normalize=True, mean=None, std=None):
 
 
 def load_dataset(name, root, train=True, download=True, transform=None):
-    """load a specified dataset with given parameters."""
+    """Load a specified dataset with given parameters."""
     dataset_dict = {
         'FashionMNIST': datasets.FashionMNIST,
-        'MNIST': datasets.MNIST,  # added support for MNIST
-        'CIFAR10': datasets.CIFAR10,  # added support for CIFAR10
-        # add other datasets here if needed
+        'MNIST': datasets.MNIST,
+        'CIFAR10': datasets.CIFAR10,
+        # add datasets here
     }
     if name not in dataset_dict:
         raise ValueError(f"dataset {name} is not supported.")
     return dataset_dict[name](root=root, train=train, download=download, transform=transform)
 
 
-def prepare_datasets(dataset_name, data_root, normalize=True):
-    """prepare training and validation datasets with optional normalization."""
+def verify_normalization(dataset):
+    """Verify that the normalization worked by calculating mean and std."""
+    norm_mean, norm_std = calculate_mean_std(dataset)
+    print(f'after normalization: mean: {norm_mean}, std: {norm_std}')
+
+
+def prepare_datasets(dataset_name, data_root, normalize=True, precalculated_stats=None):
+    """
+    Prepare training and validation datasets with optional normalization.
+    
+    Args:
+        dataset_name (str): Name of the dataset to load
+        data_root (str): Root directory for dataset
+        normalize (bool): Whether to normalize the data
+        precalculated_stats (tuple, optional): Tuple of (mean, std) if already calculated.
+                                             If provided, skips calculation step.
+    """
+    if normalize and precalculated_stats:
+        mean, std = precalculated_stats
+        print(f'using precalculated stats - mean: {mean}, std: {std}')
+        normalized_transform = get_transforms(normalize=True, mean=mean, std=std)
+        trainset = load_dataset(name=dataset_name, root=data_root, train=True, transform=normalized_transform)
+        valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=normalized_transform)
+
+        # verify normalization with precalculated stats
+        verify_normalization(trainset)
+        return trainset, valset
+    
     # initial transform without normalization to calculate mean and std
     initial_transform = get_transforms(normalize=False)
     
@@ -48,14 +74,15 @@ def prepare_datasets(dataset_name, data_root, normalize=True):
 
     if normalize:
         mean, std = calculate_mean_std(trainset)
-        print(f'calculated mean: {mean}, std: {std}')
+        print(f'calculated stats - mean: {mean}, std: {std}')
+        print(f'for future runs, use: precalculated_stats=({mean}, {std})')
+        
         # update transforms with normalization
         normalized_transform = get_transforms(normalize=True, mean=mean, std=std)
         trainset.transform = normalized_transform
         valset.transform = normalized_transform
 
-        # recalculate mean and std after normalization
-        norm_mean, norm_std = calculate_mean_std(trainset)
-        print(f'after normalization: mean: {norm_mean}, std: {norm_std}')
+        # verify normalization after calculating mean and std
+        verify_normalization(trainset)
     
     return trainset, valset

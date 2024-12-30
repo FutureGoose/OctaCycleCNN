@@ -13,6 +13,7 @@ import signal
 import os
 import sys
 import wandb
+import numpy as np
 
 if TYPE_CHECKING:
     from ..sweeps.sweep import run_sweep
@@ -53,7 +54,8 @@ class ModelTrainer:
         logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
         wandb_project: Optional[str] = None,
         wandb_entity: Optional[str] = None,
-        sweep: bool = False
+        sweep: bool = False,
+        seed: Optional[int] = None
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -75,17 +77,20 @@ class ModelTrainer:
             wandb_project (Optional[str]): Name of the W&B project to log to.
             wandb_entity (Optional[str]): W&B username or team name.
             sweep (bool): If True, delegates training to W&B sweep.
+            seed (Optional[int]): Random seed for reproducibility. If None, no seed is set.
         """
-
         self.model = model.to(device)
         self.device = device
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
         self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
         self.scheduler = scheduler
         self.batch_size = batch_size
-
         self.verbose = verbose
-        self.save_metrics = save_metrics       
+        self.save_metrics = save_metrics
+
+        if seed is not None:
+            self._set_random_seed(seed)
+
         self.metrics = metrics if metrics else [accuracy]
         self.metrics_names = [metric.__name__ for metric in self.metrics]
         
@@ -336,3 +341,19 @@ class ModelTrainer:
             self.logger_manager.save_figure(plt.gcf(), "metrics.png")
 
         plt.show()
+
+    def _set_random_seed(self, seed: int) -> None:
+        """
+        Sets random seeds for reproducibility.
+
+        Args:
+            seed (int): The random seed to use.
+        """
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        np.random.seed(seed)
+        # for reproducible operations on CUDA
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        if self.verbose:
+            print(f"\033[38;5;40mRandom seed set to {seed} for reproducibility.\033[0m")
