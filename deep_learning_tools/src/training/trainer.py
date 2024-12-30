@@ -55,7 +55,8 @@ class ModelTrainer:
         wandb_project: Optional[str] = None,
         wandb_entity: Optional[str] = None,
         sweep: bool = False,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        strict_reproducibility: bool = False
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -78,6 +79,8 @@ class ModelTrainer:
             wandb_entity (Optional[str]): W&B username or team name.
             sweep (bool): If True, delegates training to W&B sweep.
             seed (Optional[int]): Random seed for reproducibility. If None, no seed is set.
+            strict_reproducibility (bool): If True, enables strict reproducibility at the cost of performance.
+                                         This enforces deterministic algorithms and may be slower.
         """
         self.model = model.to(device)
         self.device = device
@@ -88,6 +91,7 @@ class ModelTrainer:
         self.verbose = verbose
         self.save_metrics = save_metrics
         self.seed = seed
+        self.strict_reproducibility = strict_reproducibility
 
         if seed is not None:
             self._set_random_seed(seed)
@@ -142,6 +146,36 @@ class ModelTrainer:
         if self.train_loader is None or self.val_loader is None:
             raise ValueError("Data loaders not initialized")
         
+    def verify_init_loss(self) -> float:
+        """
+        Verifies the loss at initialization.
+        For classification with CrossEntropyLoss, should be close to -log(1/n_classes).
+        
+        Returns:
+            float: The initial loss value
+        """
+        if not self.train_loader:
+            raise ValueError("DataLoader not initialized. Call setup_data_loaders first.")
+            
+        self.model.eval()
+        with torch.no_grad():
+            # Get a single batch
+            data, targets = next(iter(self.train_loader))
+            data, targets = data.to(self.device), targets.to(self.device)
+            
+            # Get predictions and loss
+            outputs = self.model(data)
+            init_loss = self.criterion(outputs, targets).item()
+            
+            if isinstance(self.criterion, nn.CrossEntropyLoss):
+                n_classes = outputs.size(1)
+                expected_loss = -np.log(1/n_classes)
+                if self.verbose:
+                    print(f"\033[38;5;40mInitial loss: {init_loss:.4f}")
+                    print(f"Expected loss for random predictions: {expected_loss:.4f}\033[0m")
+            
+            return init_loss
+            
     def load_best_model(self) -> None:
         """Loads the best model weights saved by EarlyStopping."""
         if self.early_stopping.best_model_path:
@@ -366,11 +400,23 @@ class ModelTrainer:
         Args:
             seed (int): The random seed to use.
         """
+        # basic reproducibility settings
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         np.random.seed(seed)
+        
         # for reproducible operations on CUDA
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+        # strict reproducibility settings if enabled
+        if self.strict_reproducibility:
+            if self.verbose:
+                print("\033[38;5;208mStrict reproducibility enabled. This may impact performance.\033[0m")
+            # set environment variable for CUDA reproducibility
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+            # enable deterministic algorithms
+            torch.use_deterministic_algorithms(True)
+        
         if self.verbose:
             print(f"\033[38;5;40mRandom seed set to {seed} for reproducibility.\033[0m")
