@@ -95,6 +95,7 @@ class ModelTrainer:
         self.save_metrics = save_metrics
         self.seed = seed
         self.strict_reproducibility = strict_reproducibility
+        self.current_epoch = 0
 
         if seed is not None:
             self._set_random_seed(seed)
@@ -315,7 +316,11 @@ class ModelTrainer:
                 self._fixed_batch = next(iter(self.val_loader))
                 self._fixed_data, self._fixed_targets = [x.to(self.device) for x in self._fixed_batch]
 
-            for epoch in range(1, num_epochs + 1):
+            start_epoch = self.current_epoch + 1
+            end_epoch = start_epoch + num_epochs
+
+            for epoch in range(start_epoch, end_epoch):
+                self.current_epoch = epoch  # update current epoch
                 self.metrics_history['epochs'].append(epoch)
                 train_loss = self.train_epoch(epoch)
                 val_loss = self.evaluate(epoch, phase='val')
@@ -427,3 +432,15 @@ class ModelTrainer:
         
         if self.verbose:
             print(f"\033[38;5;40mRandom seed set to {seed} for reproducibility.\033[0m")
+
+    def set_learning_rate(self, new_lr: float) -> None:
+        """update learning rate of the optimizer
+        
+        args:
+            new_lr (float): new learning rate to use
+        """
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = new_lr
+            
+        if self.verbose:
+            print(f"\033[38;5;40mLearning rate updated to {new_lr}\033[0m")
