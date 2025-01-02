@@ -79,18 +79,19 @@ class WandBLogger(BaseLogger):
         """Log epoch metrics to W&B."""
         log_dict = {
             "epoch": epoch,
-            "train/loss": train_loss,
-            "val/loss": val_loss
+            "train_loss": train_loss,
+            "val_loss": val_loss
         }
         
-        # add all metrics with proper namespacing
+        # add all metrics with consistent naming
         for name, value in metrics.items():
-            if name.startswith('train_'):
-                log_dict[f"train/{name[6:]}"] = value
-            elif name.startswith('val_'):
-                log_dict[f"val/{name[4:]}"] = value
+            if name.startswith('train_') or name.startswith('val_'):
+                # keep train_ and val_ prefixes as is
+                log_dict[name] = value
             else:
-                log_dict[f"metrics/{name}"] = value
+                # add both train and val versions
+                log_dict[f"train_{name}"] = value
+                log_dict[f"val_{name}"] = value
 
         try:
             wandb.log(log_dict)

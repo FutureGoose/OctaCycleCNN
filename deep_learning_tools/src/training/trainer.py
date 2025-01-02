@@ -213,10 +213,6 @@ class ModelTrainer:
             metric_value = metric(outputs_last_batch, targets_last_batch)
             self.metrics_history[f'train_{name}'].append(metric_value)
 
-        # log epoch metrics if using wandb
-        if self.logger_manager.logger_type == "wandb":
-            wandb.log({"epoch_loss": average_loss, "epoch": epoch})
-
         return average_loss
 
     def evaluate(self, epoch: int, phase: str = 'val') -> float:
@@ -381,7 +377,7 @@ class ModelTrainer:
             ax=axes[0],
             epochs=epochs,
             train_losses=self.metrics_history['train_loss'],
-            test_losses=self.metrics_history['val_loss'],
+            val_losses=self.metrics_history['val_loss'],
             batch_variation=batch_variation
         )
 
