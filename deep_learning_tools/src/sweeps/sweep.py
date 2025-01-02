@@ -23,17 +23,21 @@ def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
     )
     try:
         yield run
+    except KeyboardInterrupt:
+        print("Sweep interrupted. Finalizing run...")
+        wandb.finish()
+        raise
     finally:
         if wandb.run is not None:
             wandb.finish()
 
 
-def build_optimizer(network: nn.Module, optimizer_name: str, learning_rate: float):
+def build_optimizer(network: nn.Module, optimizer_name: str, learning_rate: float, weight_decay: float):
     """Utility function to build the optimizer."""
     if optimizer_name.lower() == 'adam':
-        return Adam(network.parameters(), lr=learning_rate, weight_decay=0.01)
+        return Adam(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
     elif optimizer_name.lower() == 'sgd':
-        return SGD(network.parameters(), lr=learning_rate, weight_decay=0.01)
+        return SGD(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
     else:
         raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
@@ -75,7 +79,7 @@ def run_sweep(trainer: "ModelTrainer"):
 
                     # access config after wandb.init()
                     config = wandb.config
-                    print(f"\nrun {run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.5f}, optimizer: {config.optimizer}")
+                    print(f"\nrun {run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.5f}, optimizer: {config.optimizer}, weight_decay: {config.weight_decay:.5f}")
 
                     # execute the training function for this trial
                     train_function(trainer, config)
@@ -219,7 +223,8 @@ def train_function(trainer: "ModelTrainer", config: Dict[str, Any]):
         trainer.optimizer = build_optimizer(
             network=trainer.model,
             optimizer_name=config["optimizer"],
-            learning_rate=config["learning_rate"]
+            learning_rate=config["learning_rate"],
+            weight_decay=config["weight_decay"]
         )
         if trainer.scheduler:
             trainer.scheduler = StepLR(trainer.optimizer, step_size=1, gamma=0.75)

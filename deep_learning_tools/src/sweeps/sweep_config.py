@@ -3,7 +3,7 @@ import itertools
 
 def get_count() -> int:
     """Returns the number of trials to run in the sweep."""
-    return 1  # specify the number of trials here
+    return 50  # specify the number of trials here
 
 
 sweep_config: Dict[str, Any] = {
@@ -19,10 +19,10 @@ sweep_config: Dict[str, Any] = {
             'distribution': 'uniform'  # simpler than log_uniform
         },
         'optimizer': {
-            'values': ['SGD', 'Adam']
+            'values': ['SGD']
         },
         'batch_size': {
-            'values': [64, 128, 256]
+            'values': [64, 128]
         },
         'weight_decay': {
             'min': 0.00001,
@@ -33,8 +33,8 @@ sweep_config: Dict[str, Any] = {
             'values': ['StepLR']
         },
         'step_size': {
-            'min': 20,
-            'max': 50,
+            'min': 10,
+            'max': 30,
             'distribution': 'int_uniform'
         }
     }
