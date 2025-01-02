@@ -435,6 +435,9 @@ class ModelTrainer:
         args:
             new_lr (float): new learning rate to use
         """
+
+        self.early_stopping.counter = 0
+
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = new_lr
             
