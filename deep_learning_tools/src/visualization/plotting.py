@@ -8,11 +8,11 @@ class MetricsPlotter:
     
     @staticmethod
     def plot_losses(ax, epochs: List[int], train_losses: List[float], 
-                   test_losses: List[float], batch_variation: Optional[tuple] = None):
-        """plots training and test losses."""
+                   val_losses: List[float], batch_variation: Optional[tuple] = None):
+        """plots training and validation losses."""
         # plot main loss lines
         ax.plot(epochs, train_losses, label='train loss')
-        ax.plot(epochs, test_losses, label='test loss')
+        ax.plot(epochs, val_losses, label='val loss')
         
         # add batch variation if provided
         if batch_variation:
@@ -22,7 +22,7 @@ class MetricsPlotter:
         
         ax.set_xlabel('epochs')
         ax.set_ylabel('loss')
-        ax.set_title('training and test losses')
+        ax.set_title('training and validation losses')
         ax.legend()
         ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:.4f}'))
         ax.set_xticks(list(epochs)[::max(len(epochs) // 20, 1)])
