@@ -1,3 +1,14 @@
+"""
+The EightLayerConvNet is a streamlined, VGG-inspired CNN tailored for the CIFAR-10 dataset. Key design choices include:
+
+- Orthogonal Weight Initialization: Promotes stable and efficient training.
+- Excluding Bias Terms in Convolutional Layers: Eliminates redundancy by leveraging Batch Normalization parameters.
+- Small Kernel Sizes and Progressive Pooling: Efficiently extract and downsample features from small images.
+
+These architectural decisions collectively contribute to the model's performance and training efficiency on CIFAR-10.
+"""
+
+
 import torch.nn as nn
 from torchvision import  transforms
 
@@ -31,6 +42,7 @@ class EightLayerConvNet(nn.Module):
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
+            # nn.Dropout(p=0.2),
             nn.Linear(256, num_classes)
         )
         self._initialize_weights()
@@ -49,6 +61,7 @@ class EightLayerConvNet(nn.Module):
             elif isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=1)
                 nn.init.constant_(m.bias, 0)
+
 
 # data augmentation transforms
 transform_train = transforms.Compose([

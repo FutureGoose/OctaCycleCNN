@@ -58,7 +58,9 @@ class ModelTrainer:
         sweep: bool = False,
         seed: Optional[int] = None,
         strict_reproducibility: bool = False,
-        run_karpathy_checks: bool = False
+        run_karpathy_checks: bool = False,
+        use_half_precision: bool = True,
+        use_channels_last: bool = True
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -82,11 +84,35 @@ class ModelTrainer:
             sweep (bool): If True, delegates training to W&B sweep.
             seed (Optional[int]): Random seed for reproducibility. If None, no seed is set.
             strict_reproducibility (bool): If True, enables strict reproducibility at the cost of performance.
-                                         This enforces deterministic algorithms and may be slower.
             run_karpathy_checks (bool): If True, enables Karpathy verification checks.
+            use_half_precision (bool): If True, uses FP16 (half precision) for training.
+            use_channels_last (bool): If True, uses channels last memory format.
         """
-        self.model = model.to(device)
+        # Enable cuDNN benchmarking for better performance
+        if device.type == 'cuda':
+            torch.backends.cudnn.benchmark = True
+
+        self.model = model
         self.device = device
+        self.use_half_precision = use_half_precision and device.type == 'cuda'
+        self.use_channels_last = use_channels_last and device.type == 'cuda'
+        
+        # Set memory format and convert to half precision before moving to device
+        if self.use_channels_last:
+            self.model = self.model.to(memory_format=torch.channels_last)
+        
+        if self.use_half_precision:
+            self.model = self.model.half()
+            # Keep BatchNorm in float32 for stability
+            for mod in self.model.modules():
+                if isinstance(mod, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
+                    mod.float()
+            if verbose:
+                print("\033[38;5;40mUsing FP16 (half precision) training\033[0m")
+        
+        # Move model to device after format conversion
+        self.model = self.model.to(device)
+        
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
         self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
         self.scheduler = scheduler
@@ -166,17 +192,26 @@ class ModelTrainer:
             generator = torch.Generator()
             generator.manual_seed(self.seed)
 
+        # Set memory format for data loading
+        memory_format = torch.channels_last if self.use_channels_last else torch.contiguous_format
+        
         self.train_loader = DataLoader(
             training_set, 
             batch_size=self.batch_size, 
             shuffle=True,
             generator=generator if self.seed is not None else None,
-            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None
+            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None,
+            pin_memory=True,  # Enable pinned memory for faster GPU transfer
+            persistent_workers=True,  # Keep workers alive between epochs
+            num_workers=4  # Use multiple workers for data loading
         )
         self.val_loader = DataLoader(
             val_set, 
             batch_size=self.batch_size, 
-            shuffle=False  # validation set doesn't need shuffling
+            shuffle=False,
+            pin_memory=True,
+            persistent_workers=True,
+            num_workers=4
         )
 
     def train_epoch(self, epoch: int) -> float:
@@ -185,6 +220,14 @@ class ModelTrainer:
         batch_losses = []
 
         for batch_idx, (data, targets) in enumerate(self.train_loader):
+            # Convert to channels last if enabled
+            if self.use_channels_last and data.dim() == 4:
+                data = data.to(memory_format=torch.channels_last)
+            
+            # Convert to half precision if enabled
+            if self.use_half_precision:
+                data = data.half()
+            
             data, targets = data.to(self.device), targets.to(self.device)
 
             self.optimizer.zero_grad()
@@ -228,6 +271,14 @@ class ModelTrainer:
         
         with torch.no_grad():
             for data, targets in loader:
+                # Convert to channels last if enabled
+                if self.use_channels_last and data.dim() == 4:
+                    data = data.to(memory_format=torch.channels_last)
+                
+                # Convert to half precision if enabled
+                if self.use_half_precision:
+                    data = data.half()
+                
                 data, targets = data.to(self.device), targets.to(self.device)
                 outputs = self.model(data)
                 loss = self.criterion(outputs, targets)
@@ -437,6 +488,7 @@ class ModelTrainer:
         """
 
         self.early_stopping.counter = 0
+        self.early_stopping.early_stop = False
 
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = new_lr

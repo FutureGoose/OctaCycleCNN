@@ -1,5 +1,6 @@
 from torchvision import datasets, transforms
 import torch
+import numpy as np
 
 def calculate_mean_std(dataset):
     """Calculate mean and standard deviation of a dataset."""
@@ -62,24 +63,42 @@ def prepare_datasets(dataset_name, data_root, normalize=True, precalculated_stat
         valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=transform_test)
         return trainset, valset
     
-    # Otherwise, use the original normalization logic
+    # Load datasets first
+    trainset = load_dataset(name=dataset_name, root=data_root, train=True, transform=None)
+    valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=None)
+    
+    # Handle different dataset formats
+    if dataset_name in ['CIFAR10', 'CIFAR100']:
+        # CIFAR datasets: uint8 NHWC format
+        if hasattr(trainset, 'data') and isinstance(trainset.data, (torch.Tensor, np.ndarray)):
+            trainset.data = torch.tensor(trainset.data, dtype=torch.float16) / 255
+            trainset.data = trainset.data.permute(0, 3, 1, 2).to(memory_format=torch.channels_last)
+            valset.data = torch.tensor(valset.data, dtype=torch.float16) / 255
+            valset.data = valset.data.permute(0, 3, 1, 2).to(memory_format=torch.channels_last)
+    elif dataset_name in ['MNIST', 'FashionMNIST']:
+        # MNIST-like datasets: uint8 NHW format
+        if hasattr(trainset, 'data') and isinstance(trainset.data, (torch.Tensor, np.ndarray)):
+            trainset.data = torch.tensor(trainset.data, dtype=torch.float16) / 255
+            trainset.data = trainset.data.unsqueeze(1).to(memory_format=torch.channels_last)  # Add channel dim
+            valset.data = torch.tensor(valset.data, dtype=torch.float16) / 255
+            valset.data = valset.data.unsqueeze(1).to(memory_format=torch.channels_last)  # Add channel dim
+    else:
+        # For other datasets, we'll rely on transforms
+        print(f"Dataset {dataset_name} will use standard transform pipeline")
+    
+    # Apply normalization if requested
     if normalize and precalculated_stats:
         mean, std = precalculated_stats
         print(f'using precalculated stats - mean: {mean}, std: {std}')
         normalized_transform = get_transforms(normalize=True, mean=mean, std=std)
-        trainset = load_dataset(name=dataset_name, root=data_root, train=True, transform=normalized_transform)
-        valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=normalized_transform)
+        trainset.transform = normalized_transform
+        valset.transform = normalized_transform
 
         # verify normalization with precalculated stats
         verify_normalization(trainset)
         return trainset, valset
     
-    # initial transform without normalization to calculate mean and std
-    initial_transform = get_transforms(normalize=False)
-    
-    trainset = load_dataset(name=dataset_name, root=data_root, train=True, transform=initial_transform)
-    valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=initial_transform)
-
+    # Calculate stats if needed
     if normalize:
         mean, std = calculate_mean_std(trainset)
         print(f'calculated stats - mean: {mean}, std: {std}')
