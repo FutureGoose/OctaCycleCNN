@@ -126,7 +126,11 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
 
         # log metrics for each batch if logger type is wandb
         if trainer.logger_manager.logger_type == "wandb":
-            wandb.log({"batch_loss": loss.item(), "epoch": epoch})
+            wandb.log({
+                "batch_loss": loss.item(),
+                "epoch": epoch,
+                "batch": batch_idx
+            })
 
     average_loss = sum(batch_losses) / len(trainer.train_loader)
     trainer.metrics_history['train_loss'].append(average_loss)
@@ -140,10 +144,14 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
 
     # log epoch metrics if logger type is wandb
     if trainer.logger_manager.logger_type == "wandb":
-        wandb.log({"train_loss": average_loss, "epoch": epoch})
-
+        metrics_dict = {
+            "train_loss": average_loss,
+            "epoch": epoch
+        }
+        # add all additional metrics
         for name in trainer.metrics_names:
-            wandb.log({f"train_{name}": trainer.metrics_history[f'train_{name}'][-1]})
+            metrics_dict[f"train_{name}"] = trainer.metrics_history[f'train_{name}'][-1]
+        wandb.log(metrics_dict)
 
     return average_loss
 
@@ -160,7 +168,7 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
     metrics_results: Dict[str, float] = {name: 0.0 for name in trainer.metrics_names}
 
     with torch.no_grad():
-        for data, targets in loader:
+        for batch_idx, (data, targets) in enumerate(loader):
             data, targets = data.to(trainer.device), targets.to(trainer.device)
             outputs = trainer.model(data)
             loss = trainer.criterion(outputs, targets)
@@ -176,9 +184,15 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
         trainer.metrics_history[f'{phase}_{name}'].append(avg_metric)
 
     if trainer.logger_manager.logger_type == "wandb":
-        wandb.log({"val_loss": average_loss})
+        # log all metrics together with epoch
+        metrics_dict = {
+            "val_loss": average_loss,
+            "epoch": epoch
+        }
+        # add all additional metrics
         for name in trainer.metrics_names:
-            wandb.log({f"val_{name}": trainer.metrics_history[f'{phase}_{name}'][-1]})
+            metrics_dict[f"val_{name}"] = trainer.metrics_history[f'{phase}_{name}'][-1]
+        wandb.log(metrics_dict)
 
     if trainer.verbose:
         metrics_str = ', '.join([f"{name}: {trainer.metrics_history[f'{phase}_{name}'][-1]:.2f}%" 
