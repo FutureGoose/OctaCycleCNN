@@ -7,6 +7,41 @@ def get_count() -> int:
 
 
 sweep_config: Dict[str, Any] = {
+    'method': 'bayes',  # bayesian optimization is better than random for our case
+    'metric': {
+        'goal': 'minimize',
+        'name': 'val_loss'
+    },
+    'parameters': {
+        'learning_rate': {
+            'min': 0.0001,
+            'max': 0.1,
+            'distribution': 'uniform'  # simpler than log_uniform
+        },
+        'optimizer': {
+            'values': ['SGD', 'Adam']
+        },
+        'batch_size': {
+            'values': [64, 128, 256]
+        },
+        'weight_decay': {
+            'min': 0.00001,
+            'max': 0.0001,
+            'distribution': 'uniform'
+        },
+        'scheduler': {
+            'values': ['StepLR']
+        },
+        'step_size': {
+            'min': 20,
+            'max': 50,
+            'distribution': 'int_uniform'
+        }
+    }
+}
+
+
+"""sweep_config: Dict[str, Any] = {
     'method': 'bayes',
     'metric': {
         'goal': 'minimize',
@@ -61,7 +96,7 @@ sweep_config: Dict[str, Any] = {
             'distribution': 'int_uniform'
         }
     }
-}
+}"""
 
 
 '''
