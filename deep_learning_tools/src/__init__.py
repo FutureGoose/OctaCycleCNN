@@ -6,7 +6,7 @@ from .logging import (
     LoggerManager, BaseLogger, create_logger,
     NullLogger, FileLogger, TensorBoardLogger, WandBLogger
 )
-from .utils import prepare_datasets
+from .utils import prepare_datasets, KarpathyVerification, AlternatingFlipDataset, MultiCropTTAWrapper
 from .sweeps import run_sweep, sweep_config, get_count
 
 __version__ = '0.1.0'
@@ -31,6 +31,9 @@ __all__ = [
     'WandBLogger',
     # Utils
     'prepare_datasets',
+    'KarpathyVerification',
+    'AlternatingFlipDataset',
+    'MultiCropTTAWrapper',
     # Sweeps
     'run_sweep',
     'sweep_config',

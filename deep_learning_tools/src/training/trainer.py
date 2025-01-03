@@ -60,7 +60,8 @@ class ModelTrainer:
         strict_reproducibility: bool = False,
         run_karpathy_checks: bool = False,
         use_half_precision: bool = True,
-        use_channels_last: bool = True
+        use_channels_last: bool = True,
+        step_scheduler_batch: bool = False,
     ) -> None:
         """
         Initializes the ModelTrainer.
@@ -87,6 +88,7 @@ class ModelTrainer:
             run_karpathy_checks (bool): If True, enables Karpathy verification checks.
             use_half_precision (bool): If True, uses FP16 (half precision) for training.
             use_channels_last (bool): If True, uses channels last memory format.
+            step_scheduler_batch (bool): If True, steps the scheduler per batch.
         """
 
         ############# GPU/PERFORMANCE SETTINGS #############
@@ -163,6 +165,8 @@ class ModelTrainer:
         # initialize verification results
         self.verification_results = None
 
+        self.step_scheduler_batch = step_scheduler_batch
+
     def _handle_interrupt(self, signum, frame):
         print("\nTraining interrupted. Cleaning up...")
         self.interrupted = True
@@ -209,11 +213,11 @@ class ModelTrainer:
             batch_size=self.batch_size, 
             shuffle=True,
             generator=generator if self.seed is not None else None,
-            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None,
-            pin_memory=True,          # faster transfer from CPU to GPU
+            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None, 
+            pin_memory=True,           # faster transfer from CPU to GPU
             persistent_workers=True,   # keep workers alive between epochs
             num_workers=num_workers,   # dynamically set based on available cores
-            prefetch_factor=2         # prefetch 2 batches per worker
+            prefetch_factor=2          # prefetch 2 batches per worker
         )
         self.val_loader = DataLoader(
             val_set, 
@@ -229,6 +233,10 @@ class ModelTrainer:
         """Trains the model for one epoch."""
         self.model.train()
         batch_losses = []
+
+        # Update epoch number in dataset if it supports it
+        if hasattr(self.train_loader.dataset, 'set_epoch'):
+            self.train_loader.dataset.set_epoch(epoch)
 
         for batch_idx, (data, targets) in enumerate(self.train_loader):
             # Convert to channels last if enabled
@@ -246,6 +254,10 @@ class ModelTrainer:
             loss = self.criterion(outputs, targets)
             loss.backward()
             self.optimizer.step()
+
+            # Step scheduler per batch if configured
+            if self.scheduler and self.step_scheduler_batch:
+                self.scheduler.step()
 
             batch_losses.append(loss.item())
 
@@ -266,6 +278,10 @@ class ModelTrainer:
         for metric, name in zip(self.metrics, self.metrics_names):
             metric_value = metric(outputs_last_batch, targets_last_batch)
             self.metrics_history[f'train_{name}'].append(metric_value)
+
+        # Step scheduler per epoch if not stepping per batch
+        if self.scheduler and not self.step_scheduler_batch:
+            self.scheduler.step()
 
         return average_loss
 
