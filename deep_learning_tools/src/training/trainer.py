@@ -88,7 +88,9 @@ class ModelTrainer:
             use_half_precision (bool): If True, uses FP16 (half precision) for training.
             use_channels_last (bool): If True, uses channels last memory format.
         """
-        # Enable cuDNN benchmarking for better performance
+
+        ############# GPU SETTINGS #############
+        # enable cuDNN benchmarking for better performance
         if device.type == 'cuda':
             torch.backends.cudnn.benchmark = True
 
@@ -97,22 +99,24 @@ class ModelTrainer:
         self.use_half_precision = use_half_precision and device.type == 'cuda'
         self.use_channels_last = use_channels_last and device.type == 'cuda'
         
-        # Set memory format and convert to half precision before moving to device
+        # uses channels last memory format for better performance
         if self.use_channels_last:
             self.model = self.model.to(memory_format=torch.channels_last)
         
+        # from float32 to float16 (half precision)
         if self.use_half_precision:
             self.model = self.model.half()
-            # Keep BatchNorm in float32 for stability
+            # keep BatchNorm in float32 for stability
             for mod in self.model.modules():
                 if isinstance(mod, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
                     mod.float()
             if verbose:
                 print("\033[38;5;40mUsing FP16 (half precision) training\033[0m")
         
-        # Move model to device after format conversion
+        # move model to device after format conversion
         self.model = self.model.to(device)
         
+        ############# TRAINING SETTINGS #############
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
         self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
         self.scheduler = scheduler
@@ -201,9 +205,10 @@ class ModelTrainer:
             shuffle=True,
             generator=generator if self.seed is not None else None,
             worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None,
-            pin_memory=True,  # Enable pinned memory for faster GPU transfer
-            persistent_workers=True,  # Keep workers alive between epochs
-            num_workers=4  # Use multiple workers for data loading
+            pin_memory=True,          # faster transfer from CPU to GPU
+            persistent_workers=True,  # keep workers alive between epochs, reducing startup overhead
+            num_workers=4,            # optimal for single GPU setup
+            prefetch_factor=2         # prefetch 2 batches per worker (helps with GPU utilization)
         )
         self.val_loader = DataLoader(
             val_set, 
@@ -211,7 +216,8 @@ class ModelTrainer:
             shuffle=False,
             pin_memory=True,
             persistent_workers=True,
-            num_workers=4
+            num_workers=4,
+            prefetch_factor=2
         )
 
     def train_epoch(self, epoch: int) -> float:

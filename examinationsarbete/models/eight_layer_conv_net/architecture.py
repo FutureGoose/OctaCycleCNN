@@ -42,8 +42,11 @@ class EightLayerConvNet(nn.Module):
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            # nn.Dropout(p=0.2),
-            nn.Linear(256, num_classes)
+            nn.Linear(256, 512),
+            nn.BatchNorm1d(512, momentum=0.6),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, num_classes)
         )
         self._initialize_weights()
 
