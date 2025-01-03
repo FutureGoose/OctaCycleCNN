@@ -35,19 +35,7 @@ def load_dataset(name, root, train=True, download=True, transform=None):
     }
     if name not in dataset_dict:
         raise ValueError(f"dataset {name} is not supported.")
-    dataset = dataset_dict[name](root=root, train=train, download=download, transform=transform)
-    
-    # optimize memory layout for GPU if using CIFAR10
-    if name == 'CIFAR10' and transform is not None:
-        # convert first batch to check if it's a tensor output
-        sample_batch = transform(dataset[0][0])
-        if isinstance(sample_batch, torch.Tensor) and len(sample_batch.shape) == 3:
-            old_transform = transform
-            def optimized_transform(x):
-                return old_transform(x).to(memory_format=torch.channels_last)
-            dataset.transform = optimized_transform
-    
-    return dataset
+    return dataset_dict[name](root=root, train=train, download=download, transform=transform)
 
 
 def verify_normalization(dataset):

@@ -160,6 +160,9 @@ class ModelTrainer:
         self.run_karpathy_checks = run_karpathy_checks
         self.prediction_history = []
         
+        # initialize verification results
+        self.verification_results = None
+
     def _handle_interrupt(self, signum, frame):
         print("\nTraining interrupted. Cleaning up...")
         self.interrupted = True
@@ -186,7 +189,9 @@ class ModelTrainer:
     def load_best_model(self) -> None:
         """Loads the best model weights saved by EarlyStopping."""
         if self.early_stopping.best_model_path:
-            self.model.load_state_dict(torch.load(self.early_stopping.best_model_path, weights_only=False))
+            self.model.load_state_dict(
+                torch.load(self.early_stopping.best_model_path, map_location=self.device)
+            )
 
     def setup_data_loaders(self, training_set: Dataset, val_set: Dataset) -> None:
         """Sets up the data loaders for training and validation."""
@@ -196,19 +201,19 @@ class ModelTrainer:
             generator = torch.Generator()
             generator.manual_seed(self.seed)
 
-        # Set memory format for data loading
-        memory_format = torch.channels_last if self.use_channels_last else torch.contiguous_format
+        # Calculate optimal number of workers (leave one CPU core free)
+        num_workers = max(1, os.cpu_count() - 1) if os.cpu_count() else 2
         
         self.train_loader = DataLoader(
             training_set, 
             batch_size=self.batch_size, 
             shuffle=True,
             generator=generator if self.seed is not None else None,
-            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None, 
+            worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None,
             pin_memory=True,          # faster transfer from CPU to GPU
-            persistent_workers=True,  # keep workers alive between epochs, reducing startup overhead
-            num_workers=os.cpu_count()-1,            # optimal for single GPU setup
-            prefetch_factor=2         # prefetch 2 batches per worker (helps with GPU utilization)
+            persistent_workers=True,   # keep workers alive between epochs
+            num_workers=num_workers,   # dynamically set based on available cores
+            prefetch_factor=2         # prefetch 2 batches per worker
         )
         self.val_loader = DataLoader(
             val_set, 
@@ -216,7 +221,7 @@ class ModelTrainer:
             shuffle=False,
             pin_memory=True,
             persistent_workers=True,
-            num_workers=os.cpu_count()-1,
+            num_workers=num_workers,
             prefetch_factor=2
         )
 
@@ -366,8 +371,11 @@ class ModelTrainer:
             
             # store fixed batch for prediction dynamics if Karpathy checks are enabled
             if self.run_karpathy_checks:
-                self._fixed_batch = next(iter(self.val_loader))
-                self._fixed_data, self._fixed_targets = [x.to(self.device) for x in self._fixed_batch]
+                try:
+                    self._fixed_batch = next(iter(self.val_loader))
+                    self._fixed_data, self._fixed_targets = [x.to(self.device) for x in self._fixed_batch]
+                except StopIteration:
+                    raise ValueError("Validation loader is empty, cannot run Karpathy checks.")
 
             start_epoch = self.current_epoch + 1
             end_epoch = start_epoch + num_epochs
