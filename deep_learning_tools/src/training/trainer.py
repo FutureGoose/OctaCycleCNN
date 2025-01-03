@@ -89,7 +89,7 @@ class ModelTrainer:
             use_channels_last (bool): If True, uses channels last memory format.
         """
 
-        ############# GPU SETTINGS #############
+        ############# GPU/PERFORMANCE SETTINGS #############
         # enable cuDNN benchmarking for better performance
         if device.type == 'cuda':
             torch.backends.cudnn.benchmark = True
@@ -207,7 +207,7 @@ class ModelTrainer:
             worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None, 
             pin_memory=True,          # faster transfer from CPU to GPU
             persistent_workers=True,  # keep workers alive between epochs, reducing startup overhead
-            num_workers=2,            # optimal for single GPU setup
+            num_workers=os.cpu_count()-1,            # optimal for single GPU setup
             prefetch_factor=2         # prefetch 2 batches per worker (helps with GPU utilization)
         )
         self.val_loader = DataLoader(
@@ -216,7 +216,7 @@ class ModelTrainer:
             shuffle=False,
             pin_memory=True,
             persistent_workers=True,
-            num_workers=2,
+            num_workers=os.cpu_count()-1,
             prefetch_factor=2
         )
 
