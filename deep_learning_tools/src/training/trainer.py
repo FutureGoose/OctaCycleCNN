@@ -15,6 +15,7 @@ import sys
 import wandb
 import numpy as np
 from ..utils.karpathy_verification import KarpathyVerification
+import warnings
 
 if TYPE_CHECKING:
     from ..sweeps.sweep import run_sweep
@@ -92,6 +93,17 @@ class ModelTrainer:
         """
 
         ############# GPU/PERFORMANCE SETTINGS #############
+        # create a more robust patched deletion method with warning handling
+        def patched_dataloader_del(self):
+            try:
+                self._shutdown_workers()
+            except Exception as e:
+                if not isinstance(e, AssertionError) or "can only test a child process" not in str(e):
+                    warnings.warn(f"Exception in DataLoader shutdown: {str(e)}")
+
+        # apply the patch
+        torch.utils.data.dataloader._MultiProcessingDataLoaderIter.__del__ = patched_dataloader_del
+
         # enable cuDNN benchmarking for better performance
         if device.type == 'cuda':
             torch.backends.cudnn.benchmark = True
