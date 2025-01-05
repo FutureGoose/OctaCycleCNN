@@ -34,7 +34,8 @@ class ModEightLayerConvNet(nn.Module):
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(256, 256),
-            bn(256), act(),
+            nn.BatchNorm1d(256),
+            act(),
             nn.Dropout(p=0.2),
             nn.Linear(256, 10)
         )
