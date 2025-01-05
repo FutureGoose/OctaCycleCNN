@@ -2,42 +2,41 @@ import torch.nn as nn
 from torchvision import  transforms
 import math
 
+def conv(ch_in, ch_out):
+    return nn.Conv2d(ch_in, ch_out, kernel_size=3, padding='same', bias=False)
+
 class ModEightLayerConvNet(nn.Module):
     def __init__(self):
         super(ModEightLayerConvNet, self).__init__()
-        momentum = 0.6
+        
+        act  = lambda: nn.ReLU(inplace=True)
+        bn = lambda ch: nn.BatchNorm2d(ch, momentum=0.6)
+
         self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(64, momentum=momentum),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(64, momentum=momentum),
-            nn.ReLU(inplace=True),
+            conv(3, 64),
+            bn(64), act(),
+            conv(64, 64),
+            bn(64), act(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(64, 128, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(128, momentum=momentum),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(128, momentum=momentum),
-            nn.ReLU(inplace=True),
+            conv(64, 128),
+            bn(128), act(),
+            conv(128, 128),
+            bn(128), act(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(128, 256, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(256, momentum=momentum),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(256, momentum=momentum),
-            nn.ReLU(inplace=True),
+            conv(128, 256),
+            bn(256), act(),
+            conv(256, 256),
+            bn(256), act(),
             nn.AdaptiveAvgPool2d((1, 1))
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(256, 512),
-            nn.BatchNorm1d(512, momentum=momentum),
-            nn.ReLU(inplace=True),
-            # nn.Dropout(p=0.2),
-            nn.Linear(512, 10)
+            nn.Linear(256, 256),
+            bn(256), act(),
+            nn.Dropout(p=0.2),
+            nn.Linear(256, 10)
         )
         self._initialize_weights()
 
