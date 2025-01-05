@@ -20,8 +20,8 @@ class Airbench94InspiredNet(nn.Module):
     def __init__(self, num_classes=10):
         super(Airbench94InspiredNet, self).__init__()
         
-        act = lambda: nn.GELU()
-        bn = lambda ch: nn.BatchNorm2d(ch)  # Note: momentum=0.6 in original, but PyTorch uses 1-momentum  momentum=0.4, eps=1e-12
+        act = lambda: nn.ReLU(inplace=True)
+        bn = lambda ch: nn.BatchNorm2d(ch, momentum=0.6)  # Note: momentum=0.6 in original, but PyTorch uses 1-momentum  momentum=0.4, eps=1e-12
         
         self.net = nn.Sequential(
             # Whitening layer (will be initialized separately)

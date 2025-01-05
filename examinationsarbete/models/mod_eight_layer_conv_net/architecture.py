@@ -2,6 +2,13 @@ import torch.nn as nn
 from torchvision import  transforms
 import math
 
+class Mul(nn.Module):
+    def __init__(self, scale):
+        super().__init__()
+        self.scale = scale
+    def forward(self, x):
+        return x * self.scale
+
 def conv(ch_in, ch_out):
     return nn.Conv2d(ch_in, ch_out, kernel_size=3, padding='same', bias=False)
 
@@ -33,11 +40,12 @@ class ModEightLayerConvNet(nn.Module):
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256), act(),
+            nn.Linear(256, 512),
+            nn.BatchNorm1d(512), act(),
             nn.Dropout(p=0.2),
-            nn.Linear(256, 10)
+            nn.Linear(512, 10),
         )
+
         self._initialize_weights()
 
     def forward(self, x):
@@ -49,8 +57,7 @@ class ModEightLayerConvNet(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
