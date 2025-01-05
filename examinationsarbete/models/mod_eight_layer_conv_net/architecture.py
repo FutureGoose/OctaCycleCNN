@@ -34,8 +34,7 @@ class ModEightLayerConvNet(nn.Module):
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            act(),
+            nn.BatchNorm1d(256), act(),
             nn.Dropout(p=0.2),
             nn.Linear(256, 10)
         )
@@ -45,13 +44,13 @@ class ModEightLayerConvNet(nn.Module):
         x = self.features(x)
         x = self.classifier(x)
         return x
-
+    
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.orthogonal_(m.weight, gain=1)
+                nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                nn.init.orthogonal_(m.weight, gain=1)
+                nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
                 nn.init.constant_(m.bias, 0)
