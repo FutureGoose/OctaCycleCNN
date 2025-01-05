@@ -206,7 +206,7 @@ class ModelTrainer:
         """Loads the best model weights saved by EarlyStopping."""
         if self.early_stopping.best_model_path:
             self.model.load_state_dict(
-                torch.load(self.early_stopping.best_model_path, map_location=self.device)
+                torch.load(self.early_stopping.best_model_path, map_location=self.device, weights_only=True)
             )
 
     def setup_data_loaders(self, training_set: Dataset, val_set: Dataset) -> None:
