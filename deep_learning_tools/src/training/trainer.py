@@ -246,7 +246,7 @@ class ModelTrainer:
         self.model.train()
         batch_losses = []
 
-        # Update epoch number in dataset if it supports it
+        # update epoch number in dataset if it supports it
         if hasattr(self.train_loader.dataset, 'set_epoch'):
             self.train_loader.dataset.set_epoch(epoch)
 
@@ -267,9 +267,13 @@ class ModelTrainer:
             loss.backward()
             self.optimizer.step()
 
-            # Step scheduler per batch if configured
+            # step scheduler per batch if configured
             if self.scheduler and self.step_scheduler_batch:
-                self.scheduler.step()
+                if isinstance(self.scheduler, torch.optim.lr_scheduler.OneCycleLR):
+                    if self.scheduler._step_count < self.scheduler.total_steps:
+                        self.scheduler.step()
+                else:
+                    self.scheduler.step()
 
             batch_losses.append(loss.item())
 
@@ -291,7 +295,7 @@ class ModelTrainer:
             metric_value = metric(outputs_last_batch, targets_last_batch)
             self.metrics_history[f'train_{name}'].append(metric_value)
 
-        # Step scheduler per epoch if not stepping per batch
+        # step scheduler per epoch if not stepping per batch
         if self.scheduler and not self.step_scheduler_batch:
             self.scheduler.step()
 
