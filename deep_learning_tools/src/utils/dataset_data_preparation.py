@@ -56,13 +56,13 @@ def prepare_datasets(dataset_name, data_root, normalize=True, precalculated_stat
         transform_train (transforms.Compose, optional): Custom transform for training data
         transform_val (transforms.Compose, optional): Custom transform for test/validation data
     """
-    # If custom transforms are provided, use them directly
+    # if custom transforms are provided, use them directly
     if transform_train is not None and transform_val is not None:
         trainset = load_dataset(name=dataset_name, root=data_root, train=True, transform=transform_train)
         valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=transform_val)
         return trainset, valset
     
-    # Otherwise, use the original normalization logic
+    # otherwise, use the original normalization logic
     if normalize and precalculated_stats:
         mean, std = precalculated_stats
         print(f'using precalculated stats - mean: {mean}, std: {std}')
