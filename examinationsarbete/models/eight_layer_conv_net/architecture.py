@@ -46,7 +46,7 @@ class EightLayerConvNet(nn.Module):
             nn.BatchNorm1d(512, momentum=0.6),
             nn.ReLU(inplace=True),
             nn.Dropout(p=0.2),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes, bias=False)
         )
         self._initialize_weights()
 
@@ -63,7 +63,8 @@ class EightLayerConvNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=1)
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
 
 # data augmentation transforms

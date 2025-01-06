@@ -11,3 +11,4 @@ torch-summary
 torchinfo
 tensorboard
 wandb
+efficientnet_pytorch

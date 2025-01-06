@@ -43,7 +43,7 @@ class ModEightLayerConvNet(nn.Module):
             nn.Linear(256, 512),
             nn.BatchNorm1d(512), act(),
             nn.Dropout(p=0.2),
-            nn.Linear(512, 10),
+            nn.Linear(512, 10, bias=False),
         )
 
         self._initialize_weights()
@@ -57,6 +57,8 @@ class ModEightLayerConvNet(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
                 if m.bias is not None:
