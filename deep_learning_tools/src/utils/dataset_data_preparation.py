@@ -44,7 +44,7 @@ def verify_normalization(dataset):
     print(f'after normalization: mean: {norm_mean}, std: {norm_std}')
 
 
-def prepare_datasets(dataset_name, data_root, normalize=True, precalculated_stats=None, transform_train=None, transform_test=None):
+def prepare_datasets(dataset_name, data_root, normalize=True, precalculated_stats=None, transform_train=None, transform_val=None):
     """
     Prepare training and validation datasets with optional normalization or custom transforms.
     
@@ -54,12 +54,12 @@ def prepare_datasets(dataset_name, data_root, normalize=True, precalculated_stat
         normalize (bool): Whether to normalize the data (ignored if custom transforms are provided)
         precalculated_stats (tuple, optional): Tuple of (mean, std) if already calculated
         transform_train (transforms.Compose, optional): Custom transform for training data
-        transform_test (transforms.Compose, optional): Custom transform for test/validation data
+        transform_val (transforms.Compose, optional): Custom transform for test/validation data
     """
     # If custom transforms are provided, use them directly
-    if transform_train is not None and transform_test is not None:
+    if transform_train is not None and transform_val is not None:
         trainset = load_dataset(name=dataset_name, root=data_root, train=True, transform=transform_train)
-        valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=transform_test)
+        valset = load_dataset(name=dataset_name, root=data_root, train=False, transform=transform_val)
         return trainset, valset
     
     # Otherwise, use the original normalization logic
