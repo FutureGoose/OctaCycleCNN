@@ -542,6 +542,33 @@ class ModelTrainer:
         if self.verbose:
             print(f"\033[38;5;40mLearning rate updated to {new_lr}\033[0m")
 
+    def _print(self, message: str, bold: bool = False, color: Optional[str] = None) -> None:
+        """
+        Helper method to print messages with optional formatting.
+
+        Args:
+            message (str): The message to print.
+            bold (bool): Whether to print the message in bold.
+            color (Optional[str]): The color to print the message (e.g., 'green', 'blue', 'red').
+        """
+        color_codes = {
+            "green": "\033[92m",
+            "blue": "\033[94m",
+            "cyan": "\033[96m",
+            "red": "\033[91m",
+            "bold": "\033[1m",
+            "endc": "\033[0m",
+        }
+
+        formatted_message = ""
+        if bold:
+            formatted_message += color_codes.get("bold", "")
+        if color and color in color_codes:
+            formatted_message += color_codes[color]
+        formatted_message += message + color_codes["endc"]
+
+        print(formatted_message)
+
     def evaluate_on_test(self, test_set: Dataset) -> Dict[str, float]:
         """
         Evaluates the best saved model on the test dataset and prints the metrics.
@@ -551,16 +578,11 @@ class ModelTrainer:
         
         Returns:
             Dict[str, float]: Dictionary containing all evaluation metrics.
-
-
-        # Evaluate the trained model on the test set
-        test_metrics = trainer3.evaluate_on_test(test_set=testset)
-        print("Test Metrics:", test_metrics)
         """
-        self._print("\n📊 Loading Best Model for Test Evaluation", bold=True)
+        self._print("\nLoading Best Model for Test Evaluation", bold=True)
         self.load_best_model()
         
-        # Create DataLoader for test set
+        # create DataLoader for test set
         test_loader = DataLoader(
             test_set,
             batch_size=self.batch_size,
@@ -576,7 +598,7 @@ class ModelTrainer:
         
         with torch.no_grad():
             for batch_idx, (data, targets) in enumerate(test_loader):
-                # Preprocessing steps
+                # preprocessing steps
                 if self.use_channels_last and data.dim() == 4:
                     data = data.to(memory_format=torch.channels_last)
                 
@@ -591,15 +613,15 @@ class ModelTrainer:
                 
                 for metric in self.metrics:
                     metric_value = metric(outputs, targets)
-                    metrics_results[metric.__name__] += metric_value.item()
-            
-        # Calculate average loss and metrics
-        average_loss = sum(batch_losses) / len(batch_losses)
+                    metrics_results[metric.__name__] += metric_value
+        
+        # calculate average loss and metrics
+        average_loss = sum(batch_losses) / len(test_loader)
         for metric_name in metrics_results:
             metrics_results[metric_name] /= len(test_loader)
         
-        # Print the results
+        # print the results
         metrics_str = ', '.join([f"{name}: {value:.2f}" for name, value in metrics_results.items()])
-        self._print(f"🔍 Test Loss: {average_loss:.4f} | {metrics_str}", color="green")
+        self._print(f"Test Loss: {average_loss:.4f} | {metrics_str}", color="green")
         
         return metrics_results
