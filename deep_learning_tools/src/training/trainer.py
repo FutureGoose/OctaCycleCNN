@@ -541,3 +541,65 @@ class ModelTrainer:
             
         if self.verbose:
             print(f"\033[38;5;40mLearning rate updated to {new_lr}\033[0m")
+
+    def evaluate_on_test(self, test_set: Dataset) -> Dict[str, float]:
+        """
+        Evaluates the best saved model on the test dataset and prints the metrics.
+        
+        Args:
+            test_set (Dataset): The test dataset.
+        
+        Returns:
+            Dict[str, float]: Dictionary containing all evaluation metrics.
+
+
+        # Evaluate the trained model on the test set
+        test_metrics = trainer3.evaluate_on_test(test_set=testset)
+        print("Test Metrics:", test_metrics)
+        """
+        self._print("\n📊 Loading Best Model for Test Evaluation", bold=True)
+        self.load_best_model()
+        
+        # Create DataLoader for test set
+        test_loader = DataLoader(
+            test_set,
+            batch_size=self.batch_size,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=os.cpu_count() if os.cpu_count() else 2,
+            prefetch_factor=2
+        )
+        
+        self.model.eval()
+        batch_losses = []
+        metrics_results: Dict[str, float] = {name: 0.0 for name in self.metrics_names}
+        
+        with torch.no_grad():
+            for batch_idx, (data, targets) in enumerate(test_loader):
+                # Preprocessing steps
+                if self.use_channels_last and data.dim() == 4:
+                    data = data.to(memory_format=torch.channels_last)
+                
+                if self.use_half_precision:
+                    data = data.half()
+                
+                data, targets = data.to(self.device), targets.to(self.device)
+                
+                outputs = self.model(data)
+                loss = self.criterion(outputs, targets)
+                batch_losses.append(loss.item())
+                
+                for metric in self.metrics:
+                    metric_value = metric(outputs, targets)
+                    metrics_results[metric.__name__] += metric_value.item()
+            
+        # Calculate average loss and metrics
+        average_loss = sum(batch_losses) / len(batch_losses)
+        for metric_name in metrics_results:
+            metrics_results[metric_name] /= len(test_loader)
+        
+        # Print the results
+        metrics_str = ', '.join([f"{name}: {value:.2f}" for name, value in metrics_results.items()])
+        self._print(f"🔍 Test Loss: {average_loss:.4f} | {metrics_str}", color="green")
+        
+        return metrics_results
