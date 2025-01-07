@@ -176,3 +176,12 @@ training_logs/
 MNIST/
 CIFAR10/
 FashionMNIST/
+
+# ignore all image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
