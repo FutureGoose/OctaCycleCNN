@@ -68,7 +68,7 @@ def prepare_datasets(dataset_name,
                      transform_val=None, 
                      use_validation_split=False, 
                      validation_split=0.1, 
-                     random_seed=42):
+                     random_seed=40):
     """
     Prepare training, validation, and test datasets with optional normalization or custom transforms.
     
