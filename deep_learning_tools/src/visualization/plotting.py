@@ -151,3 +151,143 @@ class MetricsPlotter:
         plt.tight_layout()
         
         return ax
+
+    @staticmethod
+    def plot_classification_examples(predictions: np.ndarray, 
+                                   true_labels: np.ndarray,
+                                   probabilities: np.ndarray,
+                                   images: np.ndarray,
+                                   class_names: List[str],
+                                   scenarios: List[dict],
+                                   n_cols: int = 3,
+                                   figsize: tuple = None,
+                                   mean: tuple = (0.4914, 0.4822, 0.4465),
+                                   std: tuple = (0.2470, 0.2435, 0.2616)) -> plt.Figure:
+        """Plots examples of model predictions based on specified scenarios.
+        
+        Args:
+            predictions: array of model predictions
+            true_labels: array of true labels
+            probabilities: array of prediction probabilities
+            images: array of images
+            class_names: list of class names
+            scenarios: list of dictionaries, each containing:
+                - true: true class name or '*' for any
+                - pred: predicted class name or '*' for any except true
+                - n: number of examples to show
+            n_cols: number of columns in the plot grid
+            figsize: figure size, auto-calculated if None
+            mean: mean values used for normalization (CIFAR-10 default)
+            std: std values used for normalization (CIFAR-10 default)
+            
+        Returns:
+            matplotlib.figure.Figure: the figure object
+        """
+        # convert class names to indices
+        class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+        
+        # helper function to get matching indices for a scenario
+        def get_scenario_indices(scenario: dict) -> np.ndarray:
+            true_class = scenario['true']
+            pred_class = scenario['pred']
+            
+            # get indices based on true class
+            if true_class == '*':
+                true_mask = np.ones_like(true_labels, dtype=bool)
+            else:
+                true_mask = true_labels == class_to_idx[true_class]
+            
+            # get indices based on predicted class
+            if pred_class == '*':
+                if true_class != '*':
+                    # exclude correct predictions when true class is specified
+                    pred_mask = predictions != class_to_idx[true_class]
+                else:
+                    pred_mask = np.ones_like(predictions, dtype=bool)
+            else:
+                pred_mask = predictions == class_to_idx[pred_class]
+            
+            # combine masks
+            return np.where(true_mask & pred_mask)[0]
+        
+        # collect examples for each scenario
+        scenario_examples = []
+        for scenario in scenarios:
+            indices = get_scenario_indices(scenario)
+            if len(indices) == 0:
+                print(f"Warning: No examples found for scenario {scenario}")
+                continue
+                
+            # randomly select n examples
+            n_examples = min(scenario['n'], len(indices))
+            selected_indices = np.random.choice(indices, size=n_examples, replace=False)
+            scenario_examples.append({
+                'indices': selected_indices,
+                'scenario': scenario
+            })
+        
+        # calculate grid layout
+        total_examples = sum(len(ex['indices']) for ex in scenario_examples)
+        if total_examples == 0:
+            raise ValueError("No examples found for any scenario")
+            
+        n_cols = min(n_cols, total_examples)
+        n_rows = (total_examples + n_cols - 1) // n_cols
+        
+        # calculate figure size if not provided, with extra space for titles
+        if figsize is None:
+            figsize = (4 * n_cols, 4 * n_rows)  # increased height multiplier from 3 to 4
+        
+        # create figure with extra space between subplots
+        fig = plt.figure(figsize=figsize)
+        plt.subplots_adjust(hspace=0.4)  # increase vertical space between subplots
+        
+        # plot each example
+        plot_idx = 1
+        for scenario_data in scenario_examples:
+            scenario = scenario_data['scenario']
+            indices = scenario_data['indices']
+            
+            for idx in indices:
+                ax = fig.add_subplot(n_rows, n_cols, plot_idx)
+                
+                # get and denormalize image
+                img = images[idx]
+                img = MetricsPlotter.denormalize_image(img, mean, std)  # denormalize before transpose
+                if img.shape[0] == 3:  # if channels first, transpose
+                    img = img.transpose(1, 2, 0)
+                
+                # plot image
+                ax.imshow(img)
+                
+                # get prediction info
+                true_class = class_names[true_labels[idx]]
+                pred_class = class_names[predictions[idx]]
+                prob = probabilities[idx][predictions[idx]]
+                
+                # set title with smaller font and more padding
+                title = f'True: {true_class}\nPred: {pred_class}\nConf: {prob:.2f}'
+                ax.set_title(title, fontsize=9, pad=5)
+                ax.axis('off')
+                
+                plot_idx += 1
+        
+        plt.tight_layout()
+        return fig
+
+    @staticmethod
+    def denormalize_image(img: np.ndarray, mean: tuple, std: tuple) -> np.ndarray:
+        """Denormalizes an image using given mean and std values.
+        
+        Args:
+            img: normalized image array
+            mean: channel-wise mean values used for normalization
+            std: channel-wise std values used for normalization
+            
+        Returns:
+            denormalized image array
+        """
+        img = img.copy()
+        for i in range(len(mean)):
+            img[i] = img[i] * std[i] + mean[i]
+        return np.clip(img, 0, 1)
