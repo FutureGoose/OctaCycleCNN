@@ -105,7 +105,8 @@ class MetricsPlotter:
                             class_names: List[str], dataset_name: str = "Dataset",
                             ax: Optional[plt.Axes] = None, 
                             figsize: tuple = (10, 8),
-                            normalize: bool = True) -> plt.Axes:
+                            normalize: bool = True,
+                            cmap: str = 'Blues') -> plt.Axes:
         """Plots confusion matrix as a heatmap.
         
         Args:
@@ -134,7 +135,7 @@ class MetricsPlotter:
             fmt = 'd'
             
         # create heatmap
-        sns.heatmap(cm, annot=True, fmt=fmt, cmap='YlOrRd',
+        sns.heatmap(cm, annot=True, fmt=fmt, cmap=cmap,
                    xticklabels=class_names, yticklabels=class_names,
                    ax=ax)
         
