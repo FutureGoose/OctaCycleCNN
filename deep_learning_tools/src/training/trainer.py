@@ -16,6 +16,7 @@ import wandb
 import numpy as np
 from ..utils.karpathy_verification import KarpathyVerification
 import warnings
+from ..utils.utils import PrintManager
 
 if TYPE_CHECKING:
     from ..sweeps.sweep import run_sweep
@@ -92,6 +93,10 @@ class ModelTrainer:
             step_scheduler_batch (bool): If True, steps the scheduler per batch.
         """
 
+        # Initialize utility managers first
+        self.print_manager = PrintManager()
+        self.plotter = MetricsPlotter()
+
         ############# GPU/PERFORMANCE SETTINGS #############
         # create a more robust patched deletion method with warning handling
         def patched_dataloader_del(self):
@@ -125,7 +130,7 @@ class ModelTrainer:
                 if isinstance(mod, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
                     mod.float()
             if verbose:
-                print("\033[38;5;40mUsing FP16 (half precision) training\033[0m")
+                self.print_manager.print_message("Using FP16 (half precision) training", msg_type="success")
         
         # move model to device after format conversion
         self.model = self.model.to(device)
@@ -153,7 +158,6 @@ class ModelTrainer:
             wandb_project=wandb_project,
             wandb_entity=wandb_entity
         )
-        self.plotter = MetricsPlotter()
 
         self.early_stopping = EarlyStopping(
             patience=early_stopping_patience, 
@@ -180,17 +184,16 @@ class ModelTrainer:
         self.step_scheduler_batch = step_scheduler_batch
 
     def _handle_interrupt(self, signum, frame):
-        print("\nTraining interrupted. Cleaning up...")
-        self.interrupted = True
+        self.print_manager.print_message("\nTraining interrupted. Cleaning up...", msg_type="warning")
         self.logger_manager.close()
         if hasattr(self.logger_manager.logger, 'cleanup'):
-            self.logger_manager.logger.cleanup()  # call cleanup if available
+            self.logger_manager.logger.cleanup()
 
         if not os.path.exists('checkpoint.pt'):
             torch.save(self.model.state_dict(), 'interrupted_model.pt')
-            print("Model state saved as interrupted_model.pt.")
+            self.print_manager.print_message("Model state saved as interrupted_model.pt.", msg_type="info")
         else:
-            print("Model state already saved as checkpoint.pt.")
+            self.print_manager.print_message("Model state already saved as checkpoint.pt.", msg_type="info")
         raise KeyboardInterrupt("Training interrupted by user.")
 
     def validate_state(self) -> None:
@@ -342,13 +345,13 @@ class ModelTrainer:
                                 for name in self.metrics_names])
             progress_msg = f"[epoch {epoch:02d}] train loss: {self.metrics_history['train_loss'][-1]:.4f} | "\
                         f"val loss: {average_loss:.4f} | {metrics_str}"
-            print("\033[38;5;44m" + progress_msg + "\033[0m")
+            self.print_manager.print_message(progress_msg, msg_type="progress")
 
         # early stopping
         self.early_stopping(average_loss, self.model)
         if self.early_stopping.early_stop:
             if self.verbose:
-                print("\033[38;5;196m" + "🚨 Early stopping triggered." + "\033[0m")
+                self.print_manager.print_message("🚨 Early stopping triggered.", msg_type="error")
             return average_loss
 
         return average_loss
@@ -389,7 +392,7 @@ class ModelTrainer:
                 )
                 verification_results = verifier.run_all_verifications()
                 if self.verbose:
-                    print("\033[38;5;40mKarpathy verification tests completed.\033[0m")
+                    self.print_manager.print_message("Karpathy verification tests completed.", msg_type="success")
                 self.verification_results = verification_results
 
             if self.sweep:
@@ -450,9 +453,9 @@ class ModelTrainer:
             return self.model
             
         except KeyboardInterrupt:
-            print("Training was manually interrupted.")
+            self.print_manager.print_message("Training was manually interrupted.", msg_type="warning")
         except Exception as e:
-            print(f"Error during training: {str(e)}")
+            self.print_manager.print_message(f"Error during training: {str(e)}", msg_type="error")
             self._handle_interrupt(None, None)
         finally:
             # ensure logger is closed even if exception is raised
@@ -517,14 +520,20 @@ class ModelTrainer:
         # strict reproducibility settings if enabled
         if self.strict_reproducibility:
             if self.verbose:
-                print("\033[38;5;208mStrict reproducibility enabled. This may impact performance.\033[0m")
+                self.print_manager.print_message(
+                    "Strict reproducibility enabled. This may impact performance.", 
+                    msg_type="warning"
+                )
             # set environment variable for CUDA reproducibility
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
             # enable deterministic algorithms
             torch.use_deterministic_algorithms(True)
         
         if self.verbose:
-            print(f"\033[38;5;40mRandom seed set to {seed} for reproducibility.\033[0m")
+            self.print_manager.print_message(
+                f"Random seed set to {seed} for reproducibility.", 
+                msg_type="success"
+            )
 
     def set_learning_rate(self, new_lr: float) -> None:
         """update learning rate of the optimizer
@@ -540,34 +549,10 @@ class ModelTrainer:
             param_group['lr'] = new_lr
             
         if self.verbose:
-            print(f"\033[38;5;40mLearning rate updated to {new_lr}\033[0m")
-
-    def _print(self, message: str, bold: bool = False, color: Optional[str] = None) -> None:
-        """
-        Helper method to print messages with optional formatting.
-
-        Args:
-            message (str): The message to print.
-            bold (bool): Whether to print the message in bold.
-            color (Optional[str]): The color to print the message (e.g., 'green', 'blue', 'red').
-        """
-        color_codes = {
-            "green": "\033[92m",
-            "blue": "\033[94m",
-            "cyan": "\033[96m",
-            "red": "\033[91m",
-            "bold": "\033[1m",
-            "endc": "\033[0m",
-        }
-
-        formatted_message = ""
-        if bold:
-            formatted_message += color_codes.get("bold", "")
-        if color and color in color_codes:
-            formatted_message += color_codes[color]
-        formatted_message += message + color_codes["endc"]
-
-        print(formatted_message)
+            self.print_manager.print_message(
+                f"Learning rate updated to {new_lr}", 
+                msg_type="success"
+            )
 
     def evaluate_on_test(self, test_set: Dataset) -> Dict[str, float]:
         """
@@ -579,7 +564,11 @@ class ModelTrainer:
         Returns:
             Dict[str, float]: Dictionary containing all evaluation metrics.
         """
-        self._print("\nLoading Best Model for Test Evaluation", bold=True)
+        self.print_manager.print_message(
+            "Loading Best Model for Test Evaluation", 
+            msg_type="success", 
+            bold=False
+        )
         self.load_best_model()
         
         # create DataLoader for test set
@@ -622,6 +611,9 @@ class ModelTrainer:
         
         # print the results
         metrics_str = ', '.join([f"{name}: {value:.2f}" for name, value in metrics_results.items()])
-        self._print(f"Test Loss: {average_loss:.4f} | {metrics_str}", color="green")
+        self.print_manager.print_message(
+            f"Test Loss: {average_loss:.4f} | {metrics_str}", 
+            msg_type="info"
+        )
         
         return metrics_results
