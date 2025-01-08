@@ -17,6 +17,7 @@ import numpy as np
 from ..utils.karpathy_verification import KarpathyVerification
 import warnings
 from ..utils.utils import PrintManager
+from torch.functional import F
 
 if TYPE_CHECKING:
     from ..sweeps.sweep import run_sweep
@@ -554,15 +555,19 @@ class ModelTrainer:
                 msg_type="success"
             )
 
-    def evaluate_on_test(self, test_set: Dataset) -> Dict[str, float]:
-        """
-        Evaluates the best saved model on the test dataset and prints the metrics.
+    def evaluate_on_test(self, test_set: Dataset) -> Dict[str, Any]:
+        """Evaluates the best saved model on the test dataset and prints the metrics.
         
         Args:
             test_set (Dataset): The test dataset.
         
         Returns:
-            Dict[str, float]: Dictionary containing all evaluation metrics.
+            Dict containing:
+                - predictions: model predictions
+                - true_labels: ground truth labels
+                - outputs: model outputs (logits)
+                - probabilities: softmax probabilities
+                - test_loader: dataloader used for evaluation
         """
         self.print_manager.print_message(
             "Loading Best Model for Test Evaluation", 
@@ -571,7 +576,6 @@ class ModelTrainer:
         )
         self.load_best_model()
         
-        # create DataLoader for test set
         test_loader = DataLoader(
             test_set,
             batch_size=self.batch_size,
@@ -585,9 +589,14 @@ class ModelTrainer:
         batch_losses = []
         metrics_results: Dict[str, float] = {name: 0.0 for name in self.metrics_names}
         
+        # collect predictions and data
+        all_outputs = []
+        all_labels = []
+        all_preds = []
+        all_probs = []
+        
         with torch.no_grad():
-            for batch_idx, (data, targets) in enumerate(test_loader):
-                # preprocessing steps
+            for data, targets in test_loader:
                 if self.use_channels_last and data.dim() == 4:
                     data = data.to(memory_format=torch.channels_last)
                 
@@ -595,25 +604,41 @@ class ModelTrainer:
                     data = data.half()
                 
                 data, targets = data.to(self.device), targets.to(self.device)
-                
                 outputs = self.model(data)
+                probabilities = F.softmax(outputs, dim=1)
+                _, predicted = torch.max(outputs.data, 1)
+                
+                # calculate metrics and loss as before
                 loss = self.criterion(outputs, targets)
                 batch_losses.append(loss.item())
                 
                 for metric in self.metrics:
                     metric_value = metric(outputs, targets)
                     metrics_results[metric.__name__] += metric_value
+                
+                # collect data for return
+                all_outputs.extend(outputs.cpu().numpy())
+                all_labels.extend(targets.cpu().numpy())
+                all_preds.extend(predicted.cpu().numpy())
+                all_probs.extend(probabilities.cpu().numpy())
         
-        # calculate average loss and metrics
+        # calculate average metrics as before
         average_loss = sum(batch_losses) / len(test_loader)
         for metric_name in metrics_results:
             metrics_results[metric_name] /= len(test_loader)
         
-        # print the results
+        # print results with same format
         metrics_str = ', '.join([f"{name}: {value:.2f}" for name, value in metrics_results.items()])
         self.print_manager.print_message(
             f"Test Loss: {average_loss:.4f} | {metrics_str}", 
             msg_type="info"
         )
         
-        return metrics_results
+        # return collected data
+        return {
+            'predictions': np.array(all_preds),
+            'true_labels': np.array(all_labels),
+            'outputs': np.array(all_outputs),
+            'probabilities': np.array(all_probs),
+            'test_loader': test_loader
+        }
