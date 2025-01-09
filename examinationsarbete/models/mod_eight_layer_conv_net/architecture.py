@@ -18,32 +18,34 @@ class ModEightLayerConvNet(nn.Module):
         
         act  = lambda: nn.ReLU(inplace=True)
         bn = lambda ch: nn.BatchNorm2d(ch, momentum=0.6)
+        pool = lambda: nn.MaxPool2d(kernel_size=2, stride=2)
 
+        # input size: [batch, 3, 32, 32]
         self.features = nn.Sequential(
-            conv(3, 64),
-            bn(64), act(),
-            conv(64, 64),
-            bn(64), act(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            conv(3, 64),                  # size: [batch, 64, 32, 32]
+            bn(64), act(),                # size maintained
+            conv(64, 64),                 # size: [batch, 64, 32, 32]
+            bn(64), act(),                # size maintained
+            pool(),                       # size: [batch, 64, 16, 16]
 
-            conv(64, 128),
-            bn(128), act(),
-            conv(128, 128),
-            bn(128), act(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            conv(64, 128),                # size: [batch, 128, 16, 16]
+            bn(128), act(),               # size maintained
+            conv(128, 128),               # size: [batch, 128, 16, 16]
+            bn(128), act(),               # size maintained
+            pool(),                       # size: [batch, 128, 8, 8]
 
-            conv(128, 256),
-            bn(256), act(),
-            conv(256, 256),
-            bn(256), act(),
-            nn.AdaptiveAvgPool2d((1, 1))
+            conv(128, 256),               # size: [batch, 256, 8, 8]
+            bn(256), act(),               # size maintained
+            conv(256, 256),               # size: [batch, 256, 8, 8]
+            bn(256), act(),               # size maintained
+            nn.AdaptiveAvgPool2d((1, 1))  # size: [batch, 256, 1, 1]
         )
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(256, 512),
-            nn.BatchNorm1d(512), act(),
-            nn.Dropout(p=0.2),
-            nn.Linear(512, 10, bias=False),
+            nn.Flatten(),                 # size: [batch, 256]
+            nn.Linear(256, 512),          # size: [batch, 512]
+            nn.BatchNorm1d(512), act(),   # size maintained
+            nn.Dropout(p=0.2),            # size maintained
+            nn.Linear(512, 10),           # size: [batch, 10]
         )
 
         self._initialize_weights()
