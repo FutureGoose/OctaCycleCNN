@@ -20,7 +20,7 @@ class ModEightLayerConvNet(nn.Module):
         pool = lambda: nn.MaxPool2d(kernel_size=2, stride=2)
 
         # input size: [batch, 3, 32, 32]
-        self.features = nn.Sequential(
+        self.features = nn.Sequential( 
             conv(3, 64),                  # size: [batch, 64, 32, 32]
             bn(64), act(),                # size maintained
             conv(64, 64),                 # size: [batch, 64, 32, 32]
@@ -44,7 +44,7 @@ class ModEightLayerConvNet(nn.Module):
             nn.Linear(256, 512),          # size: [batch, 512]
             nn.BatchNorm1d(512), act(),   # size maintained
             nn.Dropout(p=0.2),            # size maintained
-            nn.Linear(512, 10),           # size: [batch, 10]  # try setting to false
+            nn.Linear(512, 10, bias=False),           # size: [batch, 10]  # try setting to false
         )
 
         self._initialize_weights()
