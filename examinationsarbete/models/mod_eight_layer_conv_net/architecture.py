@@ -1,5 +1,4 @@
 import torch.nn as nn
-from torchvision import  transforms
 import math
 
 class Mul(nn.Module):
@@ -45,7 +44,7 @@ class ModEightLayerConvNet(nn.Module):
             nn.Linear(256, 512),          # size: [batch, 512]
             nn.BatchNorm1d(512), act(),   # size maintained
             nn.Dropout(p=0.2),            # size maintained
-            nn.Linear(512, 10),           # size: [batch, 10]
+            nn.Linear(512, 10),           # size: [batch, 10]  # try setting to false
         )
 
         self._initialize_weights()
