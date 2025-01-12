@@ -9,7 +9,7 @@ from .logging import (
 from .utils import (
     prepare_datasets, KarpathyVerification, 
     AlternatingFlipDataset, MultiCropTTAWrapper,
-    PrintManager
+    PrintManager, calculate_per_class_accuracy
 )
 from .sweeps import run_sweep, sweep_config, get_count
 
@@ -39,6 +39,7 @@ __all__ = [
     'AlternatingFlipDataset',
     'MultiCropTTAWrapper',
     'PrintManager',
+    'calculate_per_class_accuracy',
     # Sweeps
     'run_sweep',
     'sweep_config',

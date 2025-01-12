@@ -1,4 +1,5 @@
 from typing import Optional
+import numpy as np
 
 class PrintManager:
     """Handles formatted console output with consistent styling."""
@@ -43,3 +44,19 @@ class PrintManager:
         formatted_message += message + color_codes["endc"]
         
         print(formatted_message) 
+
+
+def calculate_per_class_accuracy(true_labels: np.ndarray, predictions: np.ndarray, num_classes: int = 10) -> np.ndarray:
+    """
+    Calculate the per class accuracy for a given set of true and predicted labels.
+    """
+    class_correct = np.zeros(num_classes)
+    class_total = np.zeros(num_classes)
+    
+    for i in range(len(true_labels)):
+        label = true_labels[i]
+        class_total[label] += 1
+        if predictions[i] == label:
+            class_correct[label] += 1
+    per_class_accuracy = (class_correct / class_total) * 100
+    return per_class_accuracy 

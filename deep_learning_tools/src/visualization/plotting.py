@@ -5,6 +5,7 @@ from typing import Optional, List
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
+from ..utils.utils import calculate_per_class_accuracy
 
 class MetricsPlotter:
     """handles all plotting functionality for training metrics."""
@@ -47,13 +48,15 @@ class MetricsPlotter:
         sns.despine()
 
     @staticmethod
-    def plot_class_accuracy(accuracies: np.ndarray, class_names: List[str], 
-                          dataset_name: str = "Dataset", ax: Optional[plt.Axes] = None, 
+    def plot_class_accuracy(true_labels: np.ndarray, predictions: np.ndarray, 
+                          class_names: List[str], dataset_name: str = "Dataset", 
+                          ax: Optional[plt.Axes] = None, 
                           figsize: tuple = (10, 6)) -> plt.Axes:
         """Plots per-class accuracy as horizontal bars.
         
         Args:
-            accuracies (numpy.ndarray): array of accuracy values per class
+            true_labels (numpy.ndarray): array of true labels
+            predictions (numpy.ndarray): array of predicted labels
             class_names (list): list of class names
             dataset_name (str): name of dataset for title
             ax (matplotlib.axes, optional): axes to plot on
@@ -64,6 +67,9 @@ class MetricsPlotter:
         """
         if ax is None:
             _, ax = plt.subplots(figsize=figsize)
+        
+        # calculate per-class accuracy using the utility function
+        accuracies = calculate_per_class_accuracy(true_labels, predictions, num_classes=len(class_names))
         
         # create data frame for plotting
         df = pd.DataFrame({
