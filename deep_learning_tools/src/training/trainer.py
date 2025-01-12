@@ -206,11 +206,13 @@ class ModelTrainer:
         if self.train_loader is None or self.val_loader is None:
             raise ValueError("Data loaders not initialized")
         
-    def load_best_model(self) -> None:
+    def load_best_model(self, checkpoint_path=None) -> None:
         """Loads the best model weights saved by EarlyStopping."""
-        if self.early_stopping.best_model_path:
+        if checkpoint_path is None:
+            checkpoint_path = self.early_stopping.best_model_path
+        if checkpoint_path:
             self.model.load_state_dict(
-                torch.load(self.early_stopping.best_model_path, map_location=self.device, weights_only=True)
+                torch.load(checkpoint_path, map_location=self.device, weights_only=True)
             )
 
     def setup_data_loaders(self, training_set: Dataset, val_set: Dataset) -> None:
@@ -555,11 +557,12 @@ class ModelTrainer:
                 msg_type="success"
             )
 
-    def evaluate_on_test(self, test_set: Dataset) -> Dict[str, Any]:
+    def evaluate_on_test(self, test_set: Dataset, checkpoint_path=None) -> Dict[str, Any]:
         """Evaluates the best saved model on the test dataset and prints the metrics.
         
         Args:
             test_set (Dataset): The test dataset.
+            checkpoint_path (str, optional): Path to the checkpoint file.
         
         Returns:
             Dict containing:
@@ -574,7 +577,7 @@ class ModelTrainer:
             msg_type="success", 
             bold=False
         )
-        self.load_best_model()
+        self.load_best_model(checkpoint_path=checkpoint_path)
         
         test_loader = DataLoader(
             test_set,
