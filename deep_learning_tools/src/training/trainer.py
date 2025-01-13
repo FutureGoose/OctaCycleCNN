@@ -18,6 +18,7 @@ from ..utils.karpathy_verification import KarpathyVerification
 import warnings
 from ..utils.utils import PrintManager
 from torch.functional import F
+from tqdm import tqdm
 
 class ModelTrainer:
     """
@@ -220,7 +221,7 @@ class ModelTrainer:
             generator = torch.Generator()
             generator.manual_seed(self.seed)
 
-        # Calculate optimal number of workers (leave one CPU core free)
+        # calculate optimal number of workers (leave one CPU core free)
         num_workers = max(1, os.cpu_count() - 1) if os.cpu_count() else 2
         
         self.train_loader = DataLoader(
@@ -229,10 +230,10 @@ class ModelTrainer:
             shuffle=True,
             generator=generator if self.seed is not None else None,
             worker_init_fn=lambda worker_id: np.random.seed(self.seed) if self.seed is not None else None, 
-            pin_memory=True,           # faster transfer from CPU to GPU
-            persistent_workers=True,   # keep workers alive between epochs
-            num_workers=num_workers,   # dynamically set based on available cores
-            prefetch_factor=2          # prefetch 2 batches per worker
+            pin_memory=True,            # faster transfer from CPU to GPU
+            persistent_workers=True,    # keep workers alive between epochs
+            num_workers=num_workers,    # dynamically set based on available cores
+            prefetch_factor=1           # reduced from 2 to 1 to prevent OOM
         )
         self.val_loader = DataLoader(
             val_set, 
@@ -241,7 +242,7 @@ class ModelTrainer:
             pin_memory=True,
             persistent_workers=True,
             num_workers=num_workers,
-            prefetch_factor=2
+            prefetch_factor=1         # reduced from 2 to 1 to prevent OOM
         )
 
     def train_epoch(self, epoch: int) -> float:
@@ -253,12 +254,21 @@ class ModelTrainer:
         if hasattr(self.train_loader.dataset, 'set_epoch'):
             self.train_loader.dataset.set_epoch(epoch)
 
-        for batch_idx, (data, targets) in enumerate(self.train_loader):
-            # Convert to channels last if enabled
+        # create progress bar that will be cleared
+        progress_bar = tqdm(
+            self.train_loader,
+            desc=f'Epoch {epoch}',
+            leave=False,  # don't leave the progress bar
+            file=sys.stdout,  # use stdout to avoid logging to file
+            dynamic_ncols=True  # adapt to terminal width
+        )
+
+        for batch_idx, (data, targets) in enumerate(progress_bar):
+            # convert to channels last if enabled
             if self.use_channels_last and data.dim() == 4:
                 data = data.to(memory_format=torch.channels_last)
             
-            # Convert to half precision if enabled
+            # convert to half precision if enabled
             if self.use_half_precision:
                 data = data.half()
             
@@ -280,9 +290,14 @@ class ModelTrainer:
 
             batch_losses.append(loss.item())
 
+            # update progress bar with current loss
+            progress_bar.set_postfix({'loss': f'{loss.item():.4f}'}, refresh=True)
+
             # log metrics for each batch if using wandb
             if self.logger_manager.logger_type == "wandb":
                 wandb.log({"batch_loss": loss.item(), "epoch": epoch})
+
+        progress_bar.close()
 
         # epoch total loss / number of batches = epoch average loss
         average_loss = sum(batch_losses) / len(self.train_loader)
@@ -315,13 +330,22 @@ class ModelTrainer:
         batch_losses = []
         metrics_results: Dict[str, float] = {name: 0.0 for name in self.metrics_names}
         
+        # create progress bar for validation
+        progress_bar = tqdm(
+            loader,
+            desc=f'Validate',
+            leave=False,  # don't leave the progress bar
+            file=sys.stdout,  # use stdout to avoid logging to file
+            dynamic_ncols=True  # adapt to terminal width
+        )
+        
         with torch.no_grad():
-            for data, targets in loader:
-                # Convert to channels last if enabled
+            for data, targets in progress_bar:
+                # convert to channels last if enabled
                 if self.use_channels_last and data.dim() == 4:
                     data = data.to(memory_format=torch.channels_last)
                 
-                # Convert to half precision if enabled
+                # convert to half precision if enabled
                 if self.use_half_precision:
                     data = data.half()
                 
@@ -329,8 +353,15 @@ class ModelTrainer:
                 outputs = self.model(data)
                 loss = self.criterion(outputs, targets)
                 batch_losses.append(loss.item())
+
+                # update metrics for progress bar
+                current_metrics = {name: metric(outputs, targets) for metric, name in zip(self.metrics, self.metrics_names)}
+                progress_bar.set_postfix({'loss': f'{loss.item():.4f}', **{k: f'{v:.2f}%' for k, v in current_metrics.items()}}, refresh=True)
+
                 for metric in self.metrics:
                     metrics_results[metric.__name__] += metric(outputs, targets)
+
+        progress_bar.close()
 
         average_loss = sum(batch_losses) / len(loader)
         self.metrics_history[f'{phase}_loss'].append(average_loss)

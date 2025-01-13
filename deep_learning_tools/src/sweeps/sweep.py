@@ -128,12 +128,16 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
     )
 
     for batch_idx, (data, targets) in enumerate(progress_bar):
+        # move data to device first
+        data, targets = data.to(trainer.device), targets.to(trainer.device)
+        
+        # then convert to channels last if enabled
         if trainer.use_channels_last and data.dim() == 4:
             data = data.to(memory_format=torch.channels_last)
+        
+        # finally convert to half precision if enabled
         if trainer.use_half_precision:
             data = data.half()
-        
-        data, targets = data.to(trainer.device), targets.to(trainer.device)
 
         trainer.optimizer.zero_grad()
         outputs = trainer.model(data)
@@ -201,12 +205,17 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
 
     with torch.no_grad():
         for batch_idx, (data, targets) in enumerate(progress_bar):
+            # move data to device first
+            data, targets = data.to(trainer.device), targets.to(trainer.device)
+            
+            # then convert to channels last if enabled
             if trainer.use_channels_last and data.dim() == 4:
                 data = data.to(memory_format=torch.channels_last)
+            
+            # finally convert to half precision if enabled
             if trainer.use_half_precision:
                 data = data.half()
             
-            data, targets = data.to(trainer.device), targets.to(trainer.device)
             outputs = trainer.model(data)
             loss = trainer.criterion(outputs, targets)
             batch_losses.append(loss.item())

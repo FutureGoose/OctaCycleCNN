@@ -6,6 +6,7 @@ from .factory import create_logger
 from .wandb_logger import WandBLogger
 from datetime import datetime
 import os
+import torchinfo
 
 class LoggerManager:
     """
@@ -113,14 +114,7 @@ class LoggerManager:
         }
  
     def collect_model_summary(self, trainer: "ModelTrainer") -> str:
-        """Generate model summary string using actual data sample.
-        
-        Args:
-            trainer: The model trainer instance containing model and data loaders
-            
-        Returns:
-            str: Formatted model summary string
-        """
+        """Generate model summary string using actual data sample."""
         try:
             if trainer.train_loader is None:
                 raise ValueError("Training data loader not initialized")
@@ -129,15 +123,27 @@ class LoggerManager:
             sample_data, _ = next(iter(trainer.train_loader))
             if not isinstance(sample_data, torch.Tensor):
                 raise TypeError(f"Expected tensor input, got {type(sample_data)}")
-                
-            return str(summary(
-                trainer.model, 
-                input_size=tuple(sample_data.size()),
-                verbose=0,
-                col_width=16,
-                col_names=["output_size", "num_params", "kernel_size", "mult_adds", "trainable"],
-                row_settings=["var_names"]
-            ))
+            
+            # convert data to match model's device and dtype
+            if trainer.use_channels_last and sample_data.dim() == 4:
+                sample_data = sample_data.to(memory_format=torch.channels_last)
+            if trainer.use_half_precision:
+                sample_data = sample_data.half()
+            sample_data = sample_data.to(trainer.device)
+            
+            try:
+                model_summary = summary(
+                    trainer.model, 
+                    input_data=sample_data,  # use prepared input data directly
+                    verbose=0,  # 1 to print summary to console
+                    col_width=20,
+                    col_names=["output_size", "num_params", "kernel_size", "mult_adds", "trainable"],
+                    row_settings=["var_names"],
+                    depth=10
+                )
+                return str(model_summary)
+            except Exception as e:
+                return f"Basic model structure:\n{trainer.model}"
         except Exception as e:
             return f"Failed to generate summary: {str(e)}"
 

@@ -35,7 +35,7 @@ sweep_config: Dict[str, Any] = {
             'values': ['SGD']  # fixed to SGD as requested
         },
         'epochs': {
-            'values': [1]
+            'values': [15]
         }
     }
 }
