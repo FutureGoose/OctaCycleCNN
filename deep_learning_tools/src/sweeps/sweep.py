@@ -118,6 +118,11 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
     batch_losses = []
 
     for batch_idx, (data, targets) in enumerate(trainer.train_loader):
+        if trainer.use_channels_last and data.dim() == 4:
+            data = data.to(memory_format=torch.channels_last)
+        if trainer.use_half_precision:
+            data = data.half()
+        
         data, targets = data.to(trainer.device), targets.to(trainer.device)
 
         trainer.optimizer.zero_grad()
@@ -173,6 +178,11 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
 
     with torch.no_grad():
         for batch_idx, (data, targets) in enumerate(loader):
+            if trainer.use_channels_last and data.dim() == 4:
+                data = data.to(memory_format=torch.channels_last)
+            if trainer.use_half_precision:
+                data = data.half()
+            
             data, targets = data.to(trainer.device), targets.to(trainer.device)
             outputs = trainer.model(data)
             loss = trainer.criterion(outputs, targets)

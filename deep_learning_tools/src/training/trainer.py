@@ -19,9 +19,6 @@ import warnings
 from ..utils.utils import PrintManager
 from torch.functional import F
 
-if TYPE_CHECKING:
-    from ..sweeps.sweep import run_sweep
-
 class ModelTrainer:
     """
     A flexible and intuitive trainer for PyTorch models.
