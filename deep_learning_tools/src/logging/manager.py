@@ -1,10 +1,7 @@
 from typing import Dict, Any, Optional, Literal
 import torch
-from torch import nn
-from torch.utils.data import DataLoader
 from torchinfo import summary
 import matplotlib.pyplot as plt
-from .base import BaseLogger
 from .factory import create_logger
 from .wandb_logger import WandBLogger
 from datetime import datetime
@@ -80,7 +77,7 @@ class LoggerManager:
         if hasattr(self.logger, 'close'):
             self.logger.close()
 
-    def collect_hyperparameters(self, trainer) -> Dict[str, Any]:
+    def collect_hyperparameters(self, trainer: "ModelTrainer") -> Dict[str, Any]:
         """
         Extract and format hyperparameters from trainer state.
 
@@ -157,7 +154,7 @@ class LoggerManager:
             model_summary = self.collect_model_summary(trainer)
             self.logger.log_model_summary(model_summary)
 
-    def on_epoch_end(self, trainer, epoch: int) -> None:
+    def on_epoch_end(self, trainer: "ModelTrainer", epoch: int) -> None:
         """
         Handle end of epoch events.
 
@@ -176,7 +173,7 @@ class LoggerManager:
             metrics=metrics
         )
 
-    def on_early_stopping(self, trainer) -> None:
+    def on_early_stopping(self, trainer: "ModelTrainer") -> None:
         """
         Handle early stopping event.
 
