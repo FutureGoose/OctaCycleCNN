@@ -7,6 +7,8 @@ import traceback
 from contextlib import contextmanager
 import torch
 from ..training.early_stopping import EarlyStopping
+from tqdm import tqdm
+import sys
 
 if TYPE_CHECKING:
     from src.training.trainer import ModelTrainer
@@ -117,7 +119,15 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
     trainer.model.train()
     batch_losses = []
 
-    for batch_idx, (data, targets) in enumerate(trainer.train_loader):
+    progress_bar = tqdm(
+        trainer.train_loader,
+        desc=f'Epoch {epoch}',
+        leave=False,
+        file=sys.stdout,   # stdout to avoid logging to file
+        dynamic_ncols=True # adapt to terminal width
+    )
+
+    for batch_idx, (data, targets) in enumerate(progress_bar):
         if trainer.use_channels_last and data.dim() == 4:
             data = data.to(memory_format=torch.channels_last)
         if trainer.use_half_precision:
@@ -132,6 +142,9 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
         trainer.optimizer.step()
 
         batch_losses.append(loss.item())
+        
+        # update progress bar with current loss
+        progress_bar.set_postfix({'loss': f'{loss.item():.4f}'}, refresh=True)
 
         # log metrics for each batch if logger type is wandb
         if trainer.logger_manager.logger_type == "wandb":
@@ -140,6 +153,8 @@ def sweep_train_epoch(trainer: "ModelTrainer", epoch: int) -> float:
                 "epoch": epoch,
                 "batch": batch_idx
             })
+
+    progress_bar.close()
 
     average_loss = sum(batch_losses) / len(trainer.train_loader)
     trainer.metrics_history['train_loss'].append(average_loss)
@@ -176,8 +191,16 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
     batch_losses = []
     metrics_results: Dict[str, float] = {name: 0.0 for name in trainer.metrics_names}
 
+    progress_bar = tqdm(
+        loader,
+        desc=f'Validate',
+        leave=False,
+        file=sys.stdout,     # stdout to avoid logging to file
+        dynamic_ncols=True   # adapt to terminal width
+    )
+
     with torch.no_grad():
-        for batch_idx, (data, targets) in enumerate(loader):
+        for batch_idx, (data, targets) in enumerate(progress_bar):
             if trainer.use_channels_last and data.dim() == 4:
                 data = data.to(memory_format=torch.channels_last)
             if trainer.use_half_precision:
@@ -187,8 +210,15 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
             outputs = trainer.model(data)
             loss = trainer.criterion(outputs, targets)
             batch_losses.append(loss.item())
+            
+            # Update metrics for progress bar
+            current_metrics = {name: metric(outputs, targets) for metric, name in zip(trainer.metrics, trainer.metrics_names)}
+            progress_bar.set_postfix({'loss': f'{loss.item():.4f}', **{k: f'{v:.2f}%' for k, v in current_metrics.items()}}, refresh=True)
+            
             for metric in trainer.metrics:
                 metrics_results[metric.__name__] += metric(outputs, targets)
+
+    progress_bar.close()
 
     average_loss = sum(batch_losses) / len(loader)
     trainer.metrics_history[f'{phase}_loss'].append(average_loss)

@@ -3,6 +3,47 @@ import itertools
 
 def get_count() -> int:
     """Returns the number of trials to run in the sweep."""
+    return 20
+
+
+sweep_config: Dict[str, Any] = {
+    'method': 'bayes',  # Bayesian optimization is more efficient for expensive models
+    'metric': {
+        'goal': 'minimize',
+        'name': 'val_loss'
+    },
+    'parameters': {
+        'learning_rate': {
+            'distribution': 'log_uniform_values',  # Changed to specify actual values
+            'min': 0.001,  # 0.01 / 10
+            'max': 0.03    # 0.01 * 3
+        },
+        'momentum': {
+            'distribution': 'uniform',
+            'min': 0.85,   # slightly below 0.9
+            'max': 0.95    # slightly above 0.9
+        },
+        'weight_decay': {
+            'distribution': 'log_uniform_values',  # Changed to specify actual values
+            'min': 1e-7,   # 1e-6 / 10
+            'max': 1e-5    # 1e-6 * 10
+        },
+        'batch_size': {
+            'values': [32, 64]  # including current 32 and reasonable increases
+        },
+        'optimizer': {
+            'values': ['SGD']  # fixed to SGD as requested
+        },
+        'epochs': {
+            'values': [1]
+        }
+    }
+}
+
+
+'''
+def get_count() -> int:
+    """Returns the number of trials to run in the sweep."""
     return 10  # specify the number of trials here
 
 
@@ -39,66 +80,7 @@ sweep_config: Dict[str, Any] = {
         }
     }
 }
-
-
-"""sweep_config: Dict[str, Any] = {
-    'method': 'bayes',
-    'metric': {
-        'goal': 'minimize',
-        'name': 'val_loss'
-    },
-    'parameters': {
-        'epochs': {
-            'values': [50]
-        },
-        'scheduler': {
-            'values': ['StepLR'],
-            'distribution': 'categorical'
-        },
-        'scheduler_type': {
-            'values': ['StepLR'],
-            'distribution': 'categorical'
-        },
-        'gamma': {
-            'min': 0.05,
-            'max': 0.2,
-            'distribution': 'uniform'
-        },
-        'early_stopping_patience': {
-            'values': [5],
-            'distribution': 'categorical'
-        },
-        'early_stopping_delta': {
-            'values': [1e-4],
-            'distribution': 'categorical'
-        },
-        'learning_rate': {
-            'min': 0.0005,
-            'max': 0.002,
-            'distribution': 'uniform'
-        },
-        'optimizer': {
-            'values': ['Adam'],
-            'distribution': 'categorical'
-        },
-        'weight_decay': {
-            'min': 0.00005,
-            'max': 0.0002,
-            'distribution': 'uniform'
-        },
-        'batch_size': {
-            'values': [32, 64, 128],
-            'distribution': 'categorical'
-        },
-        'step_size': {
-            'min': 5,
-            'max': 20,
-            'distribution': 'int_uniform'
-        }
-    }
-}"""
-
-
+'''
 '''
 # working basic params
 sweep_config: Dict[str, Any] = {
