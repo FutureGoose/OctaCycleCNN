@@ -1,5 +1,4 @@
 import torch.nn as nn
-from torchvision import  transforms
 
 class EightLayerConvNet(nn.Module):
     def __init__(self, num_classes=10):
