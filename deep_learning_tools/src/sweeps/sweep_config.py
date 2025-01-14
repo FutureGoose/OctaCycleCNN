@@ -3,7 +3,7 @@ import itertools
 
 def get_count() -> int:
     """Returns the number of trials to run in the sweep."""
-    return 20
+    return 50
 
 
 sweep_config: Dict[str, Any] = {
