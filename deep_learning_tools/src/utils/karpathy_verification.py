@@ -415,10 +415,10 @@ class KarpathyVerification:
                 'success': success
             }
             
-            # Restore states
+            # restore states
             self.model.load_state_dict(state_dict)
             self.optimizer.load_state_dict(optimizer_state)
-            self.model.train()  # Ensure model is in training mode
+            self.model.train()  # ensure model is in training mode
             
         self._print("\n✅ Verification Tests Completed", bold=True)
         self._print("Review the results above to ensure your training setup is solid.\n")
