@@ -92,7 +92,7 @@ class ModelTrainer:
             step_scheduler_batch (bool): If True, steps the scheduler per batch.
         """
 
-        # Initialize utility managers first
+        # initialize utility managers first
         self.print_manager = PrintManager()
         self.plotter = MetricsPlotter()
 

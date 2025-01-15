@@ -50,9 +50,6 @@ class LoggerManager:
             if wandb_project is None:
                 raise ValueError("wandb_project must be specified when using wandb logger")
             
-            # For wandb, we create the logs/wandb directory structure
-            # This is the ONLY place where we add the wandb subdirectory
-            #wandb_log_dir = os.path.join(log_dir, "wandb")
             os.makedirs(log_dir, exist_ok=True)
             
             self.logger = create_logger(
@@ -64,7 +61,7 @@ class LoggerManager:
                 **kwargs
             )
         else:
-            # For other loggers, let them handle their own directory structure
+            # for other loggers, let them handle their own directory structure
             self.logger = create_logger(
                 logger_type,
                 run_id=run_id,
