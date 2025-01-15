@@ -22,7 +22,7 @@ class AlternatingFlipDataset(Dataset):
     def __getitem__(self, idx):
         data, target = self.dataset[idx]
         
-        # Exactly matching the paper's implementation:
+        # exactly matching the paper's implementation: https://arxiv.org/pdf/2404.00498v2
         # flip_mask = ((hashed_indices + epoch) % 2 == 0)
         should_flip = (hash_fn(idx) + self.epoch) % 2 == 0
             
@@ -39,35 +39,34 @@ class AlternatingFlipDataset(Dataset):
     
     def verify_alternating_flip(self, num_samples=5):
         """Verify that the alternating flip is working correctly according to the paper's specification."""
-        # Store original epoch
+        # store original epoch
         original_epoch = self.epoch
         
-        # Test samples across first three epochs (0,1,2) to verify the pattern
+        # test samples across first three epochs (0,1,2) to verify the pattern
         results = []
         for idx in range(num_samples):
-            # Get flip states for three consecutive epochs
+            # get flip states for three consecutive epochs
             flip_states = [
                 (hash_fn(idx) + 0) % 2 == 0,  # epoch 0
                 (hash_fn(idx) + 1) % 2 == 0,  # epoch 1
                 (hash_fn(idx) + 2) % 2 == 0,  # epoch 2
             ]
             
-            # Print detailed info for debugging
             print(f"Sample {idx}:")
             print(f"  Epoch 0: {'flipped' if flip_states[0] else 'not flipped'}")
             print(f"  Epoch 1: {'flipped' if flip_states[1] else 'not flipped'}")
             print(f"  Epoch 2: {'flipped' if flip_states[2] else 'not flipped'}")
             
-            # Verify that consecutive epochs have opposite flip states
+            # verify that consecutive epochs have opposite flip states
             results.append(
                 flip_states[0] != flip_states[1] and  # alternates between epoch 0 and 1
                 flip_states[1] != flip_states[2]      # alternates between epoch 1 and 2
             )
         
-        # Restore original epoch
+        # restore original epoch
         self.set_epoch(original_epoch)
         
-        # All checks should pass
+        # all checks should pass
         verification_passed = all(results)
         if verification_passed:
             print("\033[92mAlternating flip verification passed! ✓\033[0m")
@@ -87,36 +86,36 @@ class MultiCropTTAWrapper:
         self.model = model
         
     def __call__(self, x):
-        # Basic forward pass
+        # basic forward pass
         base_output = self.model(x)
         
         # Mirror flip
         flipped = torch.flip(x, [-1])
         flip_output = self.model(flipped)
         
-        # Combine base and flip
+        # combine base and flip
         outputs = [base_output, flip_output]
         
-        # Add translations if input size allows
-        if x.size(-1) >= 32:  # Only do translations for images 32x32 or larger
+        # add translations if input size allows
+        if x.size(-1) >= 32:  # only do translations for images 32x32 or larger
             pad = 1
             padded = torch.nn.functional.pad(x, (pad,)*4, 'reflect')
-            # Up-left translation
+            # up-left translation
             trans1 = padded[..., :x.size(-2), :x.size(-1)]
-            # Down-right translation
+            # down-right translation
             trans2 = padded[..., 2:, 2:]
             
-            # Get outputs for translations
+            # get outputs for translations
             trans1_output = self.model(trans1)
             trans2_output = self.model(trans2)
             
-            # Get outputs for flipped translations
+            # get outputs for flipped translations
             trans1_flip = self.model(torch.flip(trans1, [-1]))
             trans2_flip = self.model(torch.flip(trans2, [-1]))
             
             outputs.extend([trans1_output, trans2_output, trans1_flip, trans2_flip])
         
-        # Weight and combine all outputs
-        # Base predictions get 0.25 weight each, translations get 0.125 each
+        # weight and combine all outputs
+        # base predictions get 0.25 weight each, translations get 0.125 each
         weights = torch.tensor([0.25, 0.25] + [0.125]*4, device=outputs[0].device)
         return torch.stack(outputs).mul(weights.view(-1, 1, 1)).sum(0) 

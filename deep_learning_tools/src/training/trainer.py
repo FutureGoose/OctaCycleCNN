@@ -21,8 +21,19 @@ from torch.functional import F
 from tqdm import tqdm
 
 class ModelTrainer:
-    """
-    A flexible and intuitive trainer for PyTorch models.
+    """A comprehensive trainer for PyTorch models with advanced features.
+
+    This class provides a robust training framework with support for:
+    - Mixed precision training (FP16)
+    - Channels last memory format
+    - Early stopping with customizable patience
+    - Learning rate scheduling
+    - Custom metrics tracking
+    - Multiple logger backends (file, wandb, tensorboard)
+    - Sweep training for hyperparameter optimization
+    - Karpathy's training verification tests
+    - Graceful interruption handling
+    - Reproducible training with seed setting
 
     Attributes:
         model (nn.Module): The neural network model to train.
@@ -37,6 +48,14 @@ class ModelTrainer:
         logger_manager (LoggerManager): Manager for logging operations.
         plotter (MetricsPlotter): Plotter for metrics visualization.
         metrics_history (defaultdict): History of training metrics.
+        batch_size (int): Size of training batches.
+        use_half_precision (bool): Whether to use FP16 training.
+        use_channels_last (bool): Whether to use channels last memory format.
+        step_scheduler_batch (bool): Whether to step scheduler per batch.
+        run_karpathy_checks (bool): Whether to run verification tests.
+        sweep (bool): Whether running in sweep mode.
+        seed (Optional[int]): Random seed for reproducibility.
+        verbose (bool): Whether to print detailed output.
     """
 
     def __init__(
@@ -64,32 +83,40 @@ class ModelTrainer:
         use_channels_last: bool = True,
         step_scheduler_batch: bool = False,
     ) -> None:
-        """
-        Initializes the ModelTrainer.
+        """Initialize the ModelTrainer with specified configuration.
 
         Args:
             model (nn.Module): The neural network model to train.
             device (torch.device): The device to run the training on.
             loss_fn (nn.Module, optional): The loss function. Defaults to CrossEntropyLoss.
-            optimizer (torch.optim.Optimizer, optional): The optimizer. Defaults to Adam.
+            optimizer (torch.optim.Optimizer, optional): The optimizer. Defaults to Adam with lr=3e-4.
             scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
-            batch_size (int): Batch size for data loaders.
-            verbose (bool): If True, prints training progress.
-            save_metrics (bool): If True, saves the metrics visualization.
-            early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
-            early_stopping_delta (float): Minimum change in monitored quantity to qualify as an improvement.
+            batch_size (int): Batch size for data loaders. Defaults to 32.
+            verbose (bool): If True, prints training progress. Defaults to True.
+            save_metrics (bool): If True, saves the metrics visualization. Defaults to True.
+            early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped. Defaults to 5.
+            early_stopping_delta (float): Minimum change in monitored quantity to qualify as an improvement. Defaults to 1e-4.
             metrics (list of callables, optional): List of metric functions to evaluate.
-            log_dir (str): Directory to save logs and model checkpoints.
+            log_dir (str): Directory to save logs and model checkpoints. Defaults to "logs".
             logger_type (Optional[Literal["file", "wandb", "tensorboard"]]): Type of logger to use.
             wandb_project (Optional[str]): Name of the W&B project to log to.
             wandb_entity (Optional[str]): W&B username or team name.
-            sweep (bool): If True, delegates training to W&B sweep.
+            sweep (bool): If True, delegates training to W&B sweep. Defaults to False.
             seed (Optional[int]): Random seed for reproducibility. If None, no seed is set.
-            strict_reproducibility (bool): If True, enables strict reproducibility at the cost of performance.
-            run_karpathy_checks (bool): If True, enables Karpathy verification checks.
-            use_half_precision (bool): If True, uses FP16 (half precision) for training.
-            use_channels_last (bool): If True, uses channels last memory format.
-            step_scheduler_batch (bool): If True, steps the scheduler per batch.
+            strict_reproducibility (bool): If True, enables strict reproducibility at the cost of performance. Defaults to False.
+            run_karpathy_checks (bool): If True, enables Karpathy verification checks. Defaults to False.
+            use_half_precision (bool): If True, uses FP16 (half precision) for training. Defaults to True.
+            use_channels_last (bool): If True, uses channels last memory format. Defaults to True.
+            step_scheduler_batch (bool): If True, steps the scheduler per batch. Defaults to False.
+
+        Notes:
+            - If loss_fn is None, defaults to CrossEntropyLoss
+            - If optimizer is None, defaults to Adam with lr=3e-4
+            - If metrics is None, defaults to accuracy for classification
+            - Early stopping monitors validation loss
+            - Seed affects both PyTorch and NumPy random states
+            - Logger type determines how training progress is recorded
+            - W&B parameters only used when logger_type is "wandb"
         """
 
         # initialize utility managers first
@@ -251,11 +278,25 @@ class ModelTrainer:
             pin_memory=True,
             persistent_workers=True,
             num_workers=num_workers,
-            prefetch_factor=1         # reduced from 2 to 1 to prevent OOM
+            prefetch_factor=1           # reduced from 2 to 1 to prevent OOM
         )
 
     def train_epoch(self, epoch: int) -> float:
-        """Trains the model for one epoch."""
+        """Trains the model for one epoch.
+        
+        Args:
+            epoch (int): The current epoch number.
+            
+        Returns:
+            float: The average training loss for the epoch.
+            
+        Notes:
+            - Updates model weights using backpropagation
+            - Handles data conversion (channels last, half precision)
+            - Updates learning rate if using OneCycleLR or batch-wise scheduling
+            - Logs metrics and updates progress bar
+            - Calculates additional metrics on the last batch
+        """
         self.model.train()
         batch_losses = []
 
@@ -329,7 +370,25 @@ class ModelTrainer:
         return average_loss
 
     def evaluate(self, epoch: int, phase: str = 'val') -> float:
-        """Evaluates the model on the validation dataset."""
+        """Evaluates the model on the validation dataset.
+        
+        Args:
+            epoch (int): The current epoch number.
+            phase (str, optional): The evaluation phase. Currently only supports 'val'. Defaults to 'val'.
+            
+        Returns:
+            float: The average validation loss for the epoch.
+            
+        Raises:
+            ValueError: If phase is not 'val'.
+            
+        Notes:
+            - Sets model to evaluation mode
+            - Handles data conversion (channels last, half precision)
+            - Calculates loss and additional metrics
+            - Updates progress bar with live metrics
+            - Checks early stopping conditions
+        """
         if phase == 'val':
             loader = self.val_loader
         else:
@@ -400,16 +459,25 @@ class ModelTrainer:
         val_set: Dataset,
         num_epochs: int = 20,
     ) -> nn.Module:
-        """
-        Trains the model.
+        """Trains the model on the provided datasets.
 
         Args:
             training_set (Dataset): The training dataset.
             val_set (Dataset): The validation dataset.
-            num_epochs (int): Number of epochs to train.
+            num_epochs (int, optional): Number of epochs to train. Defaults to 20.
 
         Returns:
-            nn.Module: The trained model.
+            nn.Module: The trained model (best version if early stopping is enabled).
+
+        Notes:
+            - Sets up data loaders and validates training state
+            - Runs Karpathy verification tests if enabled
+            - Handles sweep training if in sweep mode
+            - Tracks prediction dynamics if Karpathy checks are enabled
+            - Implements early stopping
+            - Saves checkpoints and logs metrics
+            - Handles training interruptions gracefully
+            - Ensures proper cleanup of resources
         """
         try:
             self.setup_data_loaders(training_set, val_set)
