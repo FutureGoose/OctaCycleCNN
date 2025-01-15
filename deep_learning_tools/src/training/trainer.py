@@ -425,7 +425,9 @@ class ModelTrainer:
                     train_loader=self.train_loader,
                     val_loader=self.val_loader,
                     device=self.device,
-                    verbose=self.verbose
+                    verbose=self.verbose,
+                    use_half_precision=self.use_half_precision,
+                    use_channels_last=self.use_channels_last
                 )
                 verification_results = verifier.run_all_verifications()
                 if self.verbose:
@@ -446,14 +448,24 @@ class ModelTrainer:
                 try:
                     self._fixed_batch = next(iter(self.val_loader))
                     self._fixed_data, self._fixed_targets = [x.to(self.device) for x in self._fixed_batch]
+                    
+                    # convert to channels last if enabled
+                    if self.use_channels_last and self._fixed_data.dim() == 4:
+                        self._fixed_data = self._fixed_data.to(memory_format=torch.channels_last)
+                    
+                    # convert to half precision if enabled
+                    if self.use_half_precision:
+                        self._fixed_data = self._fixed_data.half()
+                        
                 except StopIteration:
                     raise ValueError("Validation loader is empty, cannot run Karpathy checks.")
 
+            # start training
             start_epoch = self.current_epoch + 1
             end_epoch = start_epoch + num_epochs
 
             for epoch in range(start_epoch, end_epoch):
-                self.current_epoch = epoch  # update current epoch
+                self.current_epoch = epoch
                 self.metrics_history['epochs'].append(epoch)
                 train_loss = self.train_epoch(epoch)
                 val_loss = self.evaluate(epoch, phase='val')
@@ -471,14 +483,12 @@ class ModelTrainer:
                 if self.early_stopping.early_stop:
                     break
 
-            # plot metrics
             self.plot()
             
             # plot prediction dynamics if Karpathy checks were enabled
             if self.run_karpathy_checks and self.prediction_history:
                 verifier.plot_prediction_dynamics(self.prediction_history)
 
-            # load the best model parameters
             self.load_best_model()
 
             # log the existing checkpoint as an artifact if logger type is wandb

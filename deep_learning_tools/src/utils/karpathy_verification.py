@@ -1,6 +1,6 @@
 """
 Implements verification tests and utilities based on Andrej Karpathy's 
-'A Recipe for Training Neural Networks' blog post.
+'A Recipe for Training Neural Networks' blog post: https://karpathy.github.io/2019/04/25/recipe/
 """
 
 import torch
@@ -24,7 +24,9 @@ class KarpathyVerification:
         train_loader: DataLoader,
         val_loader: DataLoader,
         device: torch.device,
-        verbose: bool = True
+        verbose: bool = True,
+        use_half_precision: bool = False,
+        use_channels_last: bool = False
     ):
         self.model = model
         self.criterion = criterion
@@ -33,6 +35,8 @@ class KarpathyVerification:
         self.val_loader = val_loader
         self.device = device
         self.verbose = verbose
+        self.use_half_precision = use_half_precision
+        self.use_channels_last = use_channels_last
         
         # store human baselines for common datasets
         self.human_baselines = {
@@ -74,7 +78,17 @@ class KarpathyVerification:
         with torch.no_grad():
             # get a single batch
             data, targets = next(iter(self.train_loader))
+            
+            # move data to device first
             data, targets = data.to(self.device), targets.to(self.device)
+            
+            # convert to channels last if enabled
+            if self.use_channels_last and data.dim() == 4:
+                data = data.to(memory_format=torch.channels_last)
+            
+            # convert to half precision if enabled
+            if self.use_half_precision:
+                data = data.half()
             
             # normal forward pass
             outputs = self.model(data)
@@ -114,15 +128,30 @@ class KarpathyVerification:
         with torch.no_grad():
             # get a single batch
             data, targets = next(iter(self.train_loader))
+            
+            # move data to device first
             data, targets = data.to(self.device), targets.to(self.device)
+            
+            # convert to channels last if enabled
+            if self.use_channels_last and data.dim() == 4:
+                data = data.to(memory_format=torch.channels_last)
+            
+            # convert to half precision if enabled
+            if self.use_half_precision:
+                data = data.half()
             
             # normal forward pass
             outputs = self.model(data)
             normal_loss = self.criterion(outputs, targets).item()
             results['normal_loss'] = normal_loss
             
-            # zero input baseline
+            # zero input baseline (match data type and format)
             zero_data = torch.zeros_like(data)
+            if self.use_channels_last and zero_data.dim() == 4:
+                zero_data = zero_data.to(memory_format=torch.channels_last)
+            if self.use_half_precision:
+                zero_data = zero_data.half()
+            
             zero_outputs = self.model(zero_data)
             zero_loss = self.criterion(zero_outputs, targets).item()
             results['zero_input_loss'] = zero_loss
@@ -153,6 +182,14 @@ class KarpathyVerification:
         """
         self.model.eval()
         with torch.no_grad():
+            # convert to channels last if enabled
+            if self.use_channels_last and data.dim() == 4:
+                data = data.to(memory_format=torch.channels_last)
+            
+            # convert to half precision if enabled
+            if self.use_half_precision:
+                data = data.half()
+            
             outputs = self.model(data)
             loss = self.criterion(outputs, targets).item()
             
@@ -179,10 +216,18 @@ class KarpathyVerification:
         self._print("Attempting to overfit a single batch. Success indicates the model has sufficient capacity.")
         self._print(f"Target loss: {target_loss:.4f}")
         self._print("Loss should decrease rapidly and reach near-zero.\n")
-            
+        
         # get a single batch
         data, targets = next(iter(self.train_loader))
         data, targets = data.to(self.device), targets.to(self.device)
+        
+        # convert to channels last if enabled
+        if self.use_channels_last and data.dim() == 4:
+            data = data.to(memory_format=torch.channels_last)
+        
+        # convert to half precision if enabled
+        if self.use_half_precision:
+            data = data.half()
         
         initial_loss = None
         losses = []
@@ -217,7 +262,7 @@ class KarpathyVerification:
                 if i > 0:
                     loss_reduction = (initial_loss - current_loss) / initial_loss * 100
                     self._print(f"Loss reduced by {loss_reduction:.1f}%", color="green")
-            
+                
             if current_loss < target_loss:
                 self._print(f"✅ Target loss reached at iteration {i}", color="green")
                 target_reached = True
@@ -237,7 +282,7 @@ class KarpathyVerification:
                 self._print("1. Insufficient model capacity", color="yellow")
                 self._print("2. Learning rate too low", color="yellow")
                 self._print("3. Optimization issues", color="yellow")
-            
+                
         return losses, target_reached
     
     def _scale_for_visualization(self, img: np.ndarray) -> np.ndarray:
