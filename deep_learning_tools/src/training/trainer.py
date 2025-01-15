@@ -53,7 +53,7 @@ class ModelTrainer:
         early_stopping_delta: float = 1e-4,
         metrics: Optional[List[Callable[[torch.Tensor, torch.Tensor], float]]] = None,
         log_dir: str = "logs",
-        logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
+        logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = None,
         wandb_project: Optional[str] = None,
         wandb_entity: Optional[str] = None,
         sweep: bool = False,

@@ -20,10 +20,10 @@ class BaseLogger(ABC):
         """
         pass
 
-    def watch_model(self, model: nn.Module) -> None:  # new method for gradient tracking
+    def watch_model(self, model: nn.Module) -> None:
         """Set up model gradient and parameter tracking.
-        
         Default implementation does nothing. Override in loggers that support gradient tracking.
+        Note: this is not implemented in the base class, but is implemented in the wandb logger.
         """
         pass
     

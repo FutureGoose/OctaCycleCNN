@@ -28,11 +28,19 @@ class NullLogger(BaseLogger):
 
 
 def create_logger(
-    logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
+    logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = None,
     **kwargs
 ) -> BaseLogger:
-    """Create appropriate logger instance."""
-    if logger_type not in ["file", "wandb", "tensorboard"]:
+    """Create appropriate logger instance.
+    
+    Args:
+        logger_type: Type of logger to use. If None or invalid type, returns NullLogger.
+        **kwargs: Additional arguments passed to the logger constructor.
+    
+    Returns:
+        BaseLogger: Appropriate logger instance or NullLogger if logging is disabled.
+    """
+    if logger_type is None or logger_type not in ["file", "wandb", "tensorboard"]:
         return NullLogger()
     
     logger_map = {

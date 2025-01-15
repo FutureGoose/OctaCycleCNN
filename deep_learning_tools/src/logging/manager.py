@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Literal
+from typing import Dict, Any, Optional, Literal, TYPE_CHECKING
 import torch
 from torchinfo import summary
 import matplotlib.pyplot as plt
@@ -27,8 +27,8 @@ class LoggerManager:
     def __init__(
         self, 
         logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
-        wandb_project: Optional[str] = None,  # renamed to be explicit
-        wandb_entity: Optional[str] = None,   # renamed to be explicit,
+        wandb_project: Optional[str] = None,
+        wandb_entity: Optional[str] = None,
         log_dir: str = "logs",
         **kwargs
     ):
@@ -57,7 +57,7 @@ class LoggerManager:
                 run_id=run_id,
                 project=wandb_project,
                 entity=wandb_entity,
-                log_dir=log_dir,  # WandBLogger will use this directory as-is
+                log_dir=log_dir,
                 **kwargs
             )
         else:
