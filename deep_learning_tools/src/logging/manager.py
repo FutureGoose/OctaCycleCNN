@@ -24,7 +24,6 @@ class LoggerManager:
         >>> logger_manager.on_epoch_end(trainer, epoch=1)
     """
 
-class LoggerManager:
     def __init__(
         self, 
         logger_type: Optional[Literal["file", "wandb", "tensorboard"]] = "file",
