@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
-from typing import Optional, List, Callable, Dict, Any, Literal, TYPE_CHECKING
+from typing import Optional, List, Callable, Dict, Any, Literal
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from ..visualization import MetricsPlotter
@@ -378,7 +378,6 @@ class ModelTrainer:
                         f"val loss: {average_loss:.4f} | {metrics_str}"
             self.print_manager.print_message(progress_msg, msg_type="progress")
 
-        # early stopping
         self.early_stopping(average_loss, self.model)
         if self.early_stopping.early_stop:
             if self.verbose:
