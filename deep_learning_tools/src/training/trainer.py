@@ -447,15 +447,6 @@ class ModelTrainer:
                 try:
                     self._fixed_batch = next(iter(self.val_loader))
                     self._fixed_data, self._fixed_targets = [x.to(self.device) for x in self._fixed_batch]
-                    
-                    # convert to channels last if enabled
-                    if self.use_channels_last and self._fixed_data.dim() == 4:
-                        self._fixed_data = self._fixed_data.to(memory_format=torch.channels_last)
-                    
-                    # convert to half precision if enabled
-                    if self.use_half_precision:
-                        self._fixed_data = self._fixed_data.half()
-                        
                 except StopIteration:
                     raise ValueError("Validation loader is empty, cannot run Karpathy checks.")
 
