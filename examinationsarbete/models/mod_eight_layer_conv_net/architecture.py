@@ -44,7 +44,7 @@ class ModEightLayerConvNet(nn.Module):
             nn.Linear(256, 512),          # size: [batch, 512]
             nn.BatchNorm1d(512), act(),   # size maintained
             nn.Dropout(p=0.2),            # size maintained
-            nn.Linear(512, 10, bias=False),           # size: [batch, 10]  # try setting to false
+            nn.Linear(512, 10, bias=False),           # size: [batch, 10]
         )
 
         self._initialize_weights()
