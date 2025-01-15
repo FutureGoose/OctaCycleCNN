@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 from .sweep_config import sweep_config, get_count
 
+
 @contextmanager
 def wandb_run(trainer: "ModelTrainer", config: Dict[str, Any]):
     """Context manager for wandb runs."""
@@ -81,7 +82,7 @@ def run_sweep(trainer: "ModelTrainer"):
 
                     # access config after wandb.init()
                     config = wandb.config
-                    print(f"\nrun {run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.5f}, optimizer: {config.optimizer}, weight_decay: {config.weight_decay:.5f}")
+                    print(f"\nrun {run.name} - batch_size: {config.batch_size}, lr: {config.learning_rate:.8f}, optimizer: {config.optimizer}, weight_decay: {config.weight_decay:.8f}")
 
                     # execute the training function for this trial
                     train_function(trainer, config)
