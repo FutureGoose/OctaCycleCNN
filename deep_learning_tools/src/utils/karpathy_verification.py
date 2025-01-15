@@ -206,21 +206,23 @@ class KarpathyVerification:
     def overfit_one_batch(
         self,
         max_iters: int = 1000,
-        target_loss: float = 0.01  # relaxed target loss
+        target_loss: float = 0.01,  # relaxed target loss
+        num_examples: int = 2
     ) -> Tuple[List[float], bool]:
         """
-        Attempts to overfit a single batch of data.
+        Attempts to overfit a tiny batch (2-3 examples) of data.
         This is a debugging tool to verify the model can reach minimal loss.
         """
         self._print("\n🎯 Testing Model Capacity", bold=True)
-        self._print("Attempting to overfit a single batch. Success indicates the model has sufficient capacity.")
+        self._print(f"Attempting to overfit {num_examples} examples. Success indicates the model has sufficient capacity.")
         self._print(f"Target loss: {target_loss:.4f}")
         self._print("Loss should decrease rapidly and reach near-zero.\n")
         
-        # get a single batch
+        # get a single batch and take only first few examples
         data, targets = next(iter(self.train_loader))
+        data, targets = data[:num_examples], targets[:num_examples]
         data, targets = data.to(self.device), targets.to(self.device)
-        
+
         # convert to channels last if enabled
         if self.use_channels_last and data.dim() == 4:
             data = data.to(memory_format=torch.channels_last)
