@@ -220,7 +220,7 @@ def sweep_evaluate(trainer: "ModelTrainer", epoch: int, phase: str = 'val') -> f
             loss = trainer.criterion(outputs, targets)
             batch_losses.append(loss.item())
             
-            # Update metrics for progress bar
+            # update metrics for progress bar
             current_metrics = {name: metric(outputs, targets) for metric, name in zip(trainer.metrics, trainer.metrics_names)}
             progress_bar.set_postfix({'loss': f'{loss.item():.4f}', **{k: f'{v:.2f}%' for k, v in current_metrics.items()}}, refresh=True)
             
