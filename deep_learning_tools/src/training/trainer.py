@@ -99,6 +99,15 @@ class ModelTrainer:
         ############# GPU/PERFORMANCE SETTINGS #############
         # create a more robust patched deletion method with warning handling
         def patched_dataloader_del(self):
+            """
+            Custom deletion method for DataLoader's multiprocessing iterator.
+
+            This method attempts to shut down worker processes safely. 
+            If an exception occurs during shutdown, it checks for 
+            specific AssertionErrors and issues a warning instead of 
+            failing silently, improving error handling and robustness 
+            during DataLoader cleanup.
+            """
             try:
                 self._shutdown_workers()
             except Exception as e:
