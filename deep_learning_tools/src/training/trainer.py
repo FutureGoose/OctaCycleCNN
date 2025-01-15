@@ -145,7 +145,7 @@ class ModelTrainer:
         
         ############# TRAINING SETTINGS #############
         self.criterion = loss_fn if loss_fn else nn.CrossEntropyLoss()
-        self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=1e-4)
+        self.optimizer = optimizer if optimizer else Adam(self.model.parameters(), lr=3e-4)
         self.scheduler = scheduler
         self.batch_size = batch_size
         self.verbose = verbose
