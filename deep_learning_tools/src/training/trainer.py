@@ -399,8 +399,7 @@ class ModelTrainer:
         self,
         training_set: Dataset,
         val_set: Dataset,
-        num_epochs: int = 50,
-        scheduler_step: Optional[int] = None,
+        num_epochs: int = 20,
     ) -> nn.Module:
         """
         Trains the model.
@@ -409,7 +408,6 @@ class ModelTrainer:
             training_set (Dataset): The training dataset.
             val_set (Dataset): The validation dataset.
             num_epochs (int): Number of epochs to train.
-            scheduler_step (int, optional): Step size for the scheduler.
 
         Returns:
             nn.Module: The trained model.
@@ -628,7 +626,6 @@ class ModelTrainer:
         batch_losses = []
         metrics_results: Dict[str, float] = {name: 0.0 for name in self.metrics_names}
         
-        # collect predictions and data
         all_outputs = []
         all_labels = []
         all_preds = []
@@ -647,7 +644,6 @@ class ModelTrainer:
                 probabilities = F.softmax(outputs, dim=1)
                 _, predicted = torch.max(outputs.data, 1)
                 
-                # calculate metrics and loss as before
                 loss = self.criterion(outputs, targets)
                 batch_losses.append(loss.item())
                 
@@ -655,25 +651,21 @@ class ModelTrainer:
                     metric_value = metric(outputs, targets)
                     metrics_results[metric.__name__] += metric_value
                 
-                # collect data for return
                 all_outputs.extend(outputs.cpu().numpy())
                 all_labels.extend(targets.cpu().numpy())
                 all_preds.extend(predicted.cpu().numpy())
                 all_probs.extend(probabilities.cpu().numpy())
         
-        # calculate average metrics as before
         average_loss = sum(batch_losses) / len(test_loader)
         for metric_name in metrics_results:
             metrics_results[metric_name] /= len(test_loader)
         
-        # print results with same format
         metrics_str = ', '.join([f"{name}: {value:.2f}" for name, value in metrics_results.items()])
         self.print_manager.print_message(
             f"Test Loss: {average_loss:.4f} | {metrics_str}", 
             msg_type="info"
         )
         
-        # return collected data
         return {
             'predictions': np.array(all_preds),
             'true_labels': np.array(all_labels),
