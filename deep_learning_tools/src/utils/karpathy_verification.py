@@ -402,15 +402,24 @@ class KarpathyVerification:
         
         # 3. Visualize batch
         self.visualize_batch(num_samples=visualize_samples)
-        
+            
         # 4. Overfit one batch (optional as it modifies model weights)
         if run_overfit_test:
+            # Save states
+            state_dict = self.model.state_dict()
+            optimizer_state = self.optimizer.state_dict()
+            
             losses, success = self.overfit_one_batch(max_iters=max_overfit_iters)
             results['overfit_test'] = {
                 'losses': losses,
                 'success': success
             }
-        
+            
+            # Restore states
+            self.model.load_state_dict(state_dict)
+            self.optimizer.load_state_dict(optimizer_state)
+            self.model.train()  # Ensure model is in training mode
+            
         self._print("\n✅ Verification Tests Completed", bold=True)
         self._print("Review the results above to ensure your training setup is solid.\n")
             

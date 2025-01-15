@@ -339,12 +339,11 @@ class ModelTrainer:
         batch_losses = []
         metrics_results: Dict[str, float] = {name: 0.0 for name in self.metrics_names}
         
-        # create progress bar for validation
         progress_bar = tqdm(
             loader,
             desc=f'Validate',
-            leave=False,  # don't leave the progress bar
-            file=sys.stdout,  # use stdout to avoid logging to file
+            leave=False,        # don't leave the progress bar
+            file=sys.stdout,    # use stdout to avoid logging to file
             dynamic_ncols=True  # adapt to terminal width
         )
         
