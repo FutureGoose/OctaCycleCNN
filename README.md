@@ -1,6 +1,8 @@
 # Gustaf's Deep Learning Examination Project  
   
-Gustaf's examination thesis showcasing advanced CNN training optimization on CIFAR-10, achieving 91% accuracy through sophisticated training techniques and architectural improvements.  
+Gustaf's examination thesis showcasing advanced CNN training optimization on CIFAR-10, achieving 91% accuracy through sophisticated training techniques and architectural improvements. 
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/FutureGoose/deeplearning)
   
 ## 🎯 Final Examination Work  
   
