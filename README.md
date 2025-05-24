@@ -1,6 +1,6 @@
-# High-Performance CNN Framework: 91% CIFAR-10 in 20 Epochs
-
-A deep learning framework demonstrating advanced CNN training optimization on CIFAR-10, achieving 91% accuracy through modern training techniques and architectural improvements. 
+# OctaCycleCNN: High-Performance Framework for 91% CIFAR-10 Accuracy
+  
+A deep learning framework demonstrating CNN training optimization on CIFAR-10, achieving 91% accuracy through modern training techniques and architectural improvements. 
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/FutureGoose/deeplearning)
   
